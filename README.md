@@ -28,7 +28,9 @@ Since informants are simply Python objects, they can easily encapsulate and comp
 
 ## Features
 
-Within the ``ont_rdb`` package directory, the folder labeled ``ontologies`` stores an example ontology script written for projects that process Hi-C data. Other scripts can be written and loaded into the folder.
+Within the ``ont_rdb`` package directory, the folder labeled ``ontologies`` stores an example ontology script written for projects that process Hi-C data. Other scripts can be written and loaded into the folder. It is recommended to introduce new fields/attributes/methods of informant sub-classes along with **meta-data** that describes those new fields/attributes/methods in an interpretable way.
+
+``ont_rdb`` constructs a dataframe representing an ontology's directed, rooted, acyclic graph (DRAG), and facilitates constructing generic examples from the ontology by populating terminal nodes in the graph (specific objects) and applying forgetful functors to map those specific objects onto corresponding examples of the more general objects they inherit from. The function ``convert_to_informant_class`` serves as this forgetful functor, with parameters that can adjust the manner in which one class is projected into another (ex: ``clip``, ``push``).
 
 <img src="ont_rdb/data/hic_ontology_digraph_1.png" alt="Alt text" title="example-digraph" width="400"/>
 
