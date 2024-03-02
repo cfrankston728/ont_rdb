@@ -1,6 +1,10 @@
 # ont_rdb
 ``ont_rdb`` (ontological relational database) is a simple Python package for constructing relational databases that are integrated with ontological context.
 
+<figure>
+    <img src="ont_rdb/data/ont_rdb_concept1.png" alt="" title="ont_rdb-concept" width="450"/>
+</figure>
+
 ## Introduction
 An ontology is a formal representation of knowledge within a domain that enables improved comprehension, navigation, and processing of that domain's diverse objects. ``ont_rdb`` facilitates the building, sharing, modifying, and extending of arbitrary ontologies by the writing of "ontology scripts.'' An ontology script in this context is simply a Python scripts that satisfies the following properties:
 
@@ -9,9 +13,9 @@ An ontology is a formal representation of knowledge within a domain that enables
 3. The script defines classes that ultimately inherit from classes defined in ``informant_class.py``.
 
 The ontology defined by an ontology script may be represented with an acyclic, directed graph, where the informant class is the unique source node. The informant class is designed to represent a generic schema, such as is used in SQL, as a Python object. 
-
-<img src="ont_rdb/data/ont_rdb_flow_diagram1.png" alt="Dependencies flow from the informant class script---ontology scripts and scripts that define specific instances of informants will depend on the informant class script. Once ontologies and informant objects within the context of that ontology are defined, they can be exported to related projects in the form of dataframes. Ontologies can be represented by a dataframe representing its associated directed, acyclic graph, while collections of informant objects can be stored in an informant dataframe, which is also defined in the informant class." title="ont_rdb-flow-diagram" width="450"/>
-
+<figure>
+    <img src="ont_rdb/data/ont_rdb_flow_diagram1.png" alt="Dependencies flow from the informant class script---ontology scripts and scripts that define specific instances of informants will depend on the informant class script. Once ontologies and informant objects within the context of that ontology are defined, they can be exported to related projects in the form of dataframes. Ontologies can be represented by a dataframe representing its associated directed, acyclic graph, while collections of informant objects can be stored in an informant dataframe, which is also defined in the informant class." title="ont_rdb-flow-diagram" width="450"/>
+</figure>
 
 ``ont_rdb`` is envisioned as operating in parallel with Snakemake and possibly a larger database structure like SQL.
 
