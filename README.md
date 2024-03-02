@@ -1,5 +1,5 @@
 # ont_rdb
-``ont_rdb`` (ontological relational database) is a simple Python package for constructing relational databases that are integrated with a personalizable ontological context.
+``ont_rdb`` (ontological relational database) is a simple Python package for constructing relational databases that are integrated with ontological context.
 
 ## Introduction
 An ontology is a formal representation of knowledge within a domain that enables improved comprehension, navigation, and processing of that domain's diverse objects. ``ont_rdb`` facilitates the building, sharing, modifying, and extending of arbitrary ontologies by the writing of "ontology scripts.'' An ontology script in this context is simply a Python scripts that satisfies the following properties:
@@ -58,6 +58,12 @@ Using ``ont_rdb`` requires snakemake and the specification of a snakemake profil
 ## Contributing
 
 ## License
+
+cfrankston728/ont_rdb is licensed under the
+
+### MIT License
+
+A short and simple permissive license with conditions only requiring preservation of copyright and license notices. Licensed works, modifications, and larger works may be distributed under different terms and without source code.
 
 ## Authors
 Connor Frankston, Yardımcı Lab, OHSU
