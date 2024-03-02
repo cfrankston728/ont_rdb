@@ -1,0 +1,16 @@
+name: ont_rdb
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.12
+  - numpy
+  - matplotlib
+  - click
+  - pandas
+  - ca-certificates
+  - openssl
+  - ipykernel
+  - ipywidgets
+  - snakemake

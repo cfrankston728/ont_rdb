@@ -1,0 +1,6 @@
+workdir: "."
+
+configfile: "configs/config.yaml"
+
+# Include the rule file using a relative path
+include: "snakemake_rules/create_ontology_dataframe.smk"
