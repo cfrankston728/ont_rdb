@@ -41,7 +41,7 @@ To construct informant dataframes, one may use the auxiliary functions in ``info
 ## Installation
 Simply run
 
-``pip install git+https://github.com/yourusername/your-repository.git``
+``pip install git+https://github.com/cfrankston728/ont_rdb.git``
 
 or clone the repository from github.
 
@@ -56,6 +56,36 @@ The dependencies of ``ont_rdb`` can be found listed within the following file:
 Using ``ont_rdb`` requires snakemake and the specification of a snakemake profile. Using ``mamba`` as the ``conda-frontend`` is recommended.
 
 ## Contributing
+
+Thank you for your interest in contributing to our project! As this is a private repository, we assume you're already familiar with its goals and have been invited to contribute. Here are some guidelines to help you get started:
+
+### Reporting Issues
+
+- **Bug Reports:** If you encounter a bug, please file an issue using our bug report template. Include as much detail as possible: what you were doing when the bug occurred, steps to reproduce the issue, expected vs. actual behavior, and any error messages.
+- **Feature Requests:** We welcome ideas for new features. Please submit a feature request issue, describing the feature and why you think it would be a valuable addition.
+
+### Making Contributions
+
+- **Pull Requests:** Before starting work on a significant change, please open an issue to discuss your ideas. This will allow us to give you feedback and help ensure that your time is well spent.
+  - Fork the repository (if external access is granted).
+  - Create a new branch for your changes.
+  - Make your changes and commit them with clear, concise commit messages.
+  - Push your branch and submit a pull request to the main branch.
+  - Include a description of your changes and the issue number(s) your pull request addresses.
+- **Code Review:** All contributions will be reviewed for quality and compatibility with the project goals. We aim to review pull requests promptly, but response times may vary based on current priorities.
+
+### Coding Standards
+
+- Please follow the coding standards and style guidelines for the project. This ensures consistency and maintainability of the codebase.
+- Include comments in your code where necessary to explain complex or non-obvious logic.
+
+### Legal
+
+- By contributing to this project, you agree that your contributions will be licensed under its MIT License.
+- Ensure that you have the right to use and contribute any code or content you submit.
+
+For more information, feel free to contact the project maintainers.
+
 
 ## License
 
