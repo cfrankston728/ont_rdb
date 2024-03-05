@@ -1,5 +1,5 @@
 # ont_rdb
-``ont_rdb`` is a Python package for creating relational databases with an ontological framework.
+``ont_rdb`` is a package for creating relational databases with an ontological framework.
 
 <figure>
     <img src="ont_rdb/data/ont_rdb_concept1.png" alt="" title="ont_rdb-concept" width="450"/>
