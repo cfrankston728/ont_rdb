@@ -1,29 +1,29 @@
 # ont_rdb
-``ont_rdb`` (ontological relational database) is a simple Python package for constructing relational databases that are integrated with ontological context.
+``ont_rdb`` is a Python package for creating relational databases with an ontological framework.
 
 <figure>
     <img src="ont_rdb/data/ont_rdb_concept1.png" alt="" title="ont_rdb-concept" width="450"/>
 </figure>
 
 ## Introduction
-An ontology is a formal representation of knowledge within a domain that enables improved comprehension, navigation, and processing of that domain's diverse objects. ``ont_rdb`` facilitates the building, sharing, modifying, and extending of arbitrary ontologies by the writing of "ontology scripts.'' An ontology script in this context is simply a Python scripts that satisfies the following properties:
+An ontology is a formal representations of knowledge within a domain that can enhance comprehension and management of that domain's various objects. ``ont_rdb`` supports building, modifying, and sharing arbitrary ontologies by writing "ontology scripts," which are Python scripts satisfying the following properties:
 
 1. The script name is of the form ``{X}_ontology.py``.
 2. The script imports the ``informant_class.py`` module, which defines the **informant** class.
 3. The script defines classes that ultimately inherit from classes defined in ``informant_class.py``.
 
-The ontology defined by an ontology script may be represented with an acyclic, directed graph, where the informant class is the unique source node. The informant class is designed to represent a generic schema, such as is used in SQL, as a Python object. 
+The ontology defined by such a script encodes an acyclic, directed graph, with the informant class as the unique source node. The informant class is designed to represent a generic schema, such as is used in SQL, as a Python object. 
 <figure>
     <img src="ont_rdb/data/ont_rdb_flow_diagram1.png" alt="Dependencies flow from the informant class script---ontology scripts and scripts that define specific instances of informants will depend on the informant class script. Once ontologies and informant objects within the context of that ontology are defined, they can be exported to related projects in the form of dataframes. Ontologies can be represented by a dataframe representing its associated directed, acyclic graph, while collections of informant objects can be stored in an informant dataframe, which is also defined in the informant class." title="ont_rdb-flow-diagram" width="450"/>
 </figure>
 
-``ont_rdb`` is envisioned as operating in parallel with Snakemake and possibly a larger database structure like SQL.
+``ont_rdb`` is envisioned as operating in tandem with Snakemake and possibly a larger database structure like SQL.
 
 ## Motivation
 
-The integration of a relational database structure with that of a rooted ontology is motivated by the desire to **keep large data analysis projects organized**, especially when multiple steps that produce, process and combine new files of various different types are involved. By associating informants to the objects relevant to a processing pipeline, one facilitates the identification and organizion of objects and their attributes. One can consider an informant as an interpretable wrapper around a datum, which provides relevant information about the datum. 
+The fusion of a relational databases and ontologies aims to **keep large data analysis projects organized**, especially when multiple steps produce, process and combine new files of various different types. This structure facilitates the tracking and organization of data through "informants," Python objects that encapsulate data and relevant processing methods, simplifying data management.
 
-Since informants are simply Python objects, they can easily encapsulate and compartmentalize methods relevant to data processing operations, and can be used to "expose" or "express" only relevant information from external scripts. The concept of an informant is even partially motivated by principles in immunology: Just like cells of an organism express self-peptides to immune surveillance as recognition signals, informants express information about a datum to a user or process that enables correct handling of the datum. Informants are intended to offer a highly general, organized, and flexible apparatus of interpretable communication between objects and users that can simplify the organization of data processing operations.
+Informants may compartmentalize methods relevant to data processing operations, and can be used to "expose" or "express" only relevant information from external scripts. Inspired by immunology, informants serve as interpretable interfaces between data and users or processes, improving data handling efficiency.
 <figure>
     <img src="ont_rdb/data/MHC1_function.png" alt="Almost all nucleated cells naturally present cytosolic self-peptides bound to the protein major histocompatability complex one (MHC1). Antigens bound to MHC I can be recognized by mature CD8+ T Cells." title="MHC1-function-analogy" width="300"/>
     <figcaption>https://microbenotes.com/mhc-antigen-processing-presentation/#major-histocompatibility-class-ii-mhc-class-ii
@@ -32,15 +32,19 @@ Since informants are simply Python objects, they can easily encapsulate and comp
 
 ## Features
 
-Within the ``ont_rdb`` package directory, the folder labeled ``ontologies`` stores an example ontology script written for projects that process Hi-C data. Other scripts can be written and loaded into the folder. It is recommended to introduce new fields/attributes/methods of informant sub-classes along with **meta-data** that describes those new fields/attributes/methods in an interpretable way.
+Within the ``ont_rdb`` package directory, the ``ontologies`` folder stores an example ontology script written for projects that process Hi-C data. Other scripts can be written and loaded into the folder. When scripting an ontology, it is recommended to introduce new fields/attributes/methods of informant sub-classes along with **meta-data** that describes those new fields/attributes/methods in an interpretable way, especially when the fields themselves are not easily understood at face value without additional context.
 
 ``ont_rdb`` constructs a dataframe representing an ontology's directed, rooted, acyclic graph (DRAG), and facilitates constructing generic examples from the ontology by populating terminal nodes in the graph (specific objects) and applying forgetful functors to map those specific objects onto corresponding examples of the more general objects they inherit from. The function ``convert_to_informant_class`` serves as this forgetful functor, with parameters that can adjust the manner in which one class is projected into another (ex: ``clip``, ``push``).
 
 <img src="ont_rdb/data/hic_ontology_digraph_1.png" alt="Alt text" title="example-digraph" width="400"/>
 
-The ``ont_rdb_explorer.ipynb`` script can be used to interact with the ontology defined by any chosen script in the folder. The script may be selected from a drop-down menu and imported. An **informant dataframe** representing the associated directed graph can be constructed by following the simple directions in the Jupyter notebook.
+The ``ont_rdb_explorer.ipynb`` script can be used to interact with the ontology defined by any chosen script in the ``ontologies`` folder. The script may be selected from a drop-down menu and imported. An **informant dataframe** representing the associated directed graph can be constructed by following the simple directions in the Jupyter notebook.
 
-Informant dataframes leverage existing pandas query operations and the Informant class to simulate a queryable relational database based on the attributes of stored informant objects.
+Informant dataframes leverage existing pandas query operations and the Informant class to simulate a queryable relational database based on the attributes of stored informant objects using the ``filter`` method, which operates on a query string that can refer to attributes of arbitrary informants, or the informants themselves, through the escape symbol ``@``. For example, the query string
+
+``"(@name == 'my_informant') | (isinstance(@informant, File_Informant))"``
+
+when given the ``additional_context`` of ``isinstance`` will refer to informants in the data frame that either have the name attribute of ``my_informant``, or are of the ``File_Informant`` class.
 
 To construct informant dataframes, one may use the auxiliary functions in ``informant_class.py`` to leverage existing directory structures to define and store informant objects associated to files within that directory structure. In particular, the function ``create_file_informant_list_from_folder`` facilitates this operation.
 
