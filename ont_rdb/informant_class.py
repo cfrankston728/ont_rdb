@@ -446,13 +446,13 @@ class Informant_Dataframe(Informant):
         self.df.to_pickle(df_pkl_path)
 
 
-    def filter(self, expression, additional_context=None):
+    def filter(self, expression, additional_context=None, absent=False):
         """
         Filters the DataFrame based on a custom boolean expression that evaluates attributes of the 'informant' objects.
 
         The method identifies attributes in the expression prefixed with '@', checks if these attributes exist in each 'informant' object, 
         and evaluates the expression for each row in the DataFrame. If an attribute is missing, the part of the expression involving that 
-        attribute is treated as 'False'.
+        attribute is treated as determined by the 'absent' argument, which is 'False' by default, or 'True' if specified.
 
         Args:
             expression (str): A boolean expression used for filtering. Attributes of 'informant' should be prefixed with '@'.
@@ -479,14 +479,19 @@ class Informant_Dataframe(Informant):
 
         # Wrap the entire expression in parentheses
         expression = f"({expression})"
+
+        # The special escape string @informant will refer to the entire informant.
         expression = expression.replace("@informant", "informant")
 
+        # Extract the attribute names of interest
         attribute_names = set(re.findall(r'@(\w+)', expression))
 
         for index, row in self.df.iterrows():
             informant = row['informant']
 
             modified_expression = expression
+
+            # Check that the attribute exists
             for attr in attribute_names:
                 attr_exists = hasattr(informant, attr)
 
@@ -494,11 +499,11 @@ class Informant_Dataframe(Informant):
                     # Replace '@attribute' with 'informant.attribute'
                     modified_expression = modified_expression.replace(f"@{attr}", f"informant.{attr}")
                 else:
-                    # Replace the entire condition involving the missing attribute with 'False'
+                    # Replace the entire condition involving the missing attribute with the absent argument.
                     pattern = rf'(?<=\(|&|\|) *[^()]*@{attr}[^()]* *(?=\)|&|\|)'
                     substring = re.search(pattern, modified_expression)
                     if substring:
-                        modified_expression = modified_expression.replace(substring.group(), "False")
+                        modified_expression = modified_expression.replace(substring.group(), str(absent))
 
             # Evaluate the modified expression safely
             eval_context = {'informant': informant, 'isinstance': isinstance}
