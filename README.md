@@ -6,7 +6,7 @@
 </figure>
 
 ## Introduction
-An ontology is a formal representations of knowledge within a domain that can enhance comprehension and management of that domain's various objects. ``ont_rdb`` supports building, modifying, and sharing arbitrary ontologies by writing "ontology scripts," which are Python scripts satisfying the following properties:
+An ontology is a formal representation of knowledge within a domain that can enhance comprehension and management of that domain's various objects. ``ont_rdb`` supports building, modifying, and sharing arbitrary ontologies by writing "ontology scripts," which are Python scripts satisfying the following properties:
 
 1. The script name is of the form ``{X}_ontology.py``.
 2. The script imports the ``informant_class.py`` module, which defines the **informant** class.
