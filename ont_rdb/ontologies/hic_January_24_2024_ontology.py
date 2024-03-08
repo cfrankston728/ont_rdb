@@ -243,7 +243,9 @@ class hicstraw_getMatrixZoomData_Parameters(Parameters):
             if required_reference_informant not in self.reference_informant_names:
                 self.reference_informant_names.append(required_reference_informant)
         self.algorithm = 'hicstraw.getMatrixZoomData'
-        self.parameters = kwargs.get('parameters', None)
+        self.parameters = {parameter_name:None for parameter_name in hicstraw_getMatrixZoomData.parameter_descriptions.keys()}
+        self.parameters.update(kwargs.get('parameters', {}))
+        #self.set_parameters()
     
     def set_parameters(self, *param_args, **param_kwargs):
         parameter_keys = hicstraw_getMatrixZoomData.parameter_descriptions.keys()

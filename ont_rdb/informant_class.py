@@ -481,7 +481,7 @@ class Informant_Dataframe(Informant):
         expression = f"({expression})"
 
         # The special escape string @informant will refer to the entire informant.
-        expression = expression.replace("@informant", "informant")
+        expression = expression.replace("@self", "informant")
 
         # Extract the attribute names of interest
         attribute_names = set(re.findall(r'@(\w+)', expression))
