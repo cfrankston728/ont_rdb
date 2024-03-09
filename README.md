@@ -38,7 +38,7 @@ Within the ``ont_rdb`` package directory, the ``ontologies`` folder stores an ex
 
 <img src="ont_rdb/data/hic_ontology_digraph_1.png" alt="Alt text" title="example-digraph" width="400"/>
 
-The ``ont_rdb_explorer.ipynb`` script can be used to interact with the ontology defined by any chosen script in the ``ontologies`` folder. The script may be selected from a drop-down menu and imported. An **informant dataframe** representing the associated directed graph can be constructed by following the simple directions in the Jupyter notebook.
+The ``ont_rdb_explorer.ipynb`` script can be used to interact with the ontology defined by any chosen script in the ``ontologies`` folder. The script may be selected from a drop-down menu and imported. An **ontology dataframe** representing the associated directed graph can be constructed by following the simple directions in the Jupyter notebook.
 
 Informant dataframes leverage existing pandas query operations and the Informant class to simulate a queryable relational database based on the attributes of stored informant objects using the ``filter`` method, which operates on a query string that can refer to attributes of arbitrary informants, or the informants themselves, through the escape symbol ``@``. For example, the query string
 
