@@ -42,7 +42,7 @@ The ``ont_rdb_explorer.ipynb`` script can be used to interact with the ontology 
 
 Informant dataframes leverage existing pandas query operations and the Informant class to simulate a queryable relational database based on the attributes of stored informant objects using the ``filter`` method, which operates on a query string that can refer to attributes of arbitrary informants, or the informants themselves, through the escape symbol ``@``. For example, the query string
 
-``"(@name == 'my_informant') | (isinstance(@informant, File_Informant))"``
+``"(@name == 'my_informant') | (isinstance(@self, File_Informant))"``
 
 when given the ``additional_context`` of ``isinstance`` will refer to informants in the data frame that either have the name attribute of ``my_informant``, or are of the ``File_Informant`` class.
 
