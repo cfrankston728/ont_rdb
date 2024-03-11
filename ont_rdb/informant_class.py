@@ -345,8 +345,8 @@ def create_file_informant_list_from_folder(root_folder,
         arguments_dictionary = class_example.__dict__
 
         # Store the location of the file if desired and applicable
-        if (use_location and isinstance(class_example,Directory_Informant)):
-            arguments_dictionary.update({'location': os.path.join(root_folder, file_folder_sequence[-1])})
+        if (use_location and isinstance(class_example,Directory_Informant)): # This needs editing March 11, 2024
+            arguments_dictionary.update({'location': os.path.join(root_folder, *file_folder_sequence)})
         
         # Retrieve the attributes that are designated by the path to the file
         arguments_dictionary.update(dict(zip(attribute_sequence, file_folder_sequence)))
