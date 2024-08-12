@@ -1,7 +1,12 @@
 import os
 import pandas as pd
+import swifter
 from datetime import datetime
 import re
+import shutil
+
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 #import sys
 #sys.path.append('/home/cfrankston/Projects/ont_rdb/ont_rdb')
 # FIX THIS, APPEND PACKAGE DIRECTORY
@@ -136,6 +141,9 @@ informant_source_depth_dictionary = {'Informant':0}
 # informant_sink_depth_dictionary = {'Informant':0} # sink_depth will be computed in the informant_ontology_dataframe.py script.
 ####################################################################################################
 # Informant class definition:
+# UPDATE, 2024-8-8: I will include "algorithm" and "algorithmic_parameters" attributes for every informant to help track process flows. The "algorithm" attribute will obtain an Algorithm informant (A{f}) that describes (f) such that it has parameters (with their descriptions, as I have already included), and that is coordinated with the informants obtainable from the "algorithmic_parameters" attribute. In particular, the parameter descriptions of the algorithm will encode the keys to a dictionary stored under the "algorithmic_parameters" attribute, and within the "algorithmic_parameters" attribute dictionary, those keys will correspond to informants and parameter instantiations [Xi] such that [f o Xi] is the object being described.
+# This means that, probably, I should encode the Algorithm and Parameters informant sub-classes directly in this script rather than in any particular ontology.
+
 class Informant:
     """
     Base class for all Informants.
@@ -152,17 +160,28 @@ class Informant:
         informant_class (str): Type of the informant.
         is_informant_leaf (bool): Indicates whether 
         time_stamp: Timestamp associated with the informant.
+
+        algorithm (object): Algorithm that was used to construct the informant data, containing a dictionary of parameter descriptions and a path to a script and/or documentation.
+        algorithmic_parameters (object): Parameters that were fed into the Algorithm to instantiate the particular informant's data, a dictionary that associates informants to the parameters of the Algorithm.
+        constructor_command (str): A bash command that is used to construct the informant's associated data stored in its location.
     """
-    def __init__(self, dynamic_depth_mode = True, **kwargs):
+    def __init__(self, dynamic_depth_mode=True, explicit=True, overwrite=False, suppress=False, **kwargs):
+
+        #########################################################################
+        # Initialize attributes that will be stored for every Informant and by default reference kwargs:
         self.name = kwargs.get('name', None)
         self.description = kwargs.get('description', None)
         self.tags = kwargs.get('tags', [])
         self.reference_informant_names = kwargs.get('reference_informant_names', [])
-        self.informant_class = self.__class__.__name__
         # self.time_stamp = kwargs.get('time_stamp', None)
-
+        
+        self.algorithm = kwargs.get('algorithm', None)
+        self.algorithmic_parameters = kwargs.get('algorithmic_parameters', None) # Since some other informants in the current ontology have 'parameters' as an attribute, I named this "algorithmic_parameters".
+        self.constructor_command = kwargs.get('constructor_command', '')
+        ###########################################################################
+        # Initialize attributes that will be stored for every Informant and by default do NOT reference kwargs:        
+        self.informant_class = self.__class__.__name__
         self.reference_informant_name_redundancy_values = {reference_informant_name:None for reference_informant_name in self.reference_informant_names}
-
         self.source_depth = 0
         # self.sink_depth = 0
 
@@ -175,7 +194,15 @@ class Informant:
                 informant_source_depth_dictionary[self.informant_class] = self.source_depth
 
         # self.remove_redundant_reference_informant_names()
-
+        if explicit:
+                for key, value in kwargs.items():
+                    if key in ['informant_class',
+                               'reference_informant_name_redundancy_values',
+                               'source_depth'] and not overwrite:
+                        if not suppress:
+                            print(f"Warning: Attribute '{key}' was not set explicitly because '{key}' by default does not reference kwargs and 'overwrite' is False. To initialize an Informant object with an explicit value of '{key}', 'overwrite' must be set to True. Note that overwriting such a key can have unexpected effects and may lead to errors, and therefore should be avoided if possible.")
+                    else:
+                        setattr(self, key, value)
     def add_tag(self, tag):
         """
         Add a tag to the list of tags associated with the informant.
@@ -266,7 +293,6 @@ def update_reference_informant_name_redundancy(informant:Informant,
 
 ############################################################################
 # Basic Informant Sub-Classes:
-
 class Directory_Informant(Informant):
     """
     Informant with additional attributes for location.
@@ -275,17 +301,138 @@ class Directory_Informant(Informant):
         super().__init__(**kwargs)
         self.location = kwargs.get('location', None)
         self.external_locations = kwargs.get('external_locations', None)
+    def file_list(self):
+        folder_path = self.location
+        if os.path.isdir(folder_path):
+            with os.scandir(folder_path) as entries:
+                files = [entry.name for entry in entries if entry.is_file()]
+        else:
+            files = 'Invalid folder path'
+        return files
+    def file_count(self):
+        this_file_list = self.file_list()
+        if this_file_list == 'Invalid folder path':
+            return -1
+        return len(this_file_list)
 
 class File_Informant(Directory_Informant):
     def __init__(self,**kwargs):
         super().__init__(**kwargs)
         self.file_type = kwargs.get('file_type', None)
+    def rename_location(self, new_location):
+        # Check if the file exists at the current location
+        if os.path.exists(self.location):
+            # Move the file to the new location
+            shutil.move(self.location, new_location)
+            # Update the location attribute
+            self.location = new_location
+        else:
+            print(f"File does not exist at {self.location}")
+    def is_populated(self):
+        return os.path.exists(self.location)
+    def loc_type_count(self, file_types=None, max_depth=None):
+        if file_types is None:
+            if self.file_type is not None:
+                file_types = [self.file_type]
+            else:
+                return -1
+        
+        if not isinstance(file_types, list):
+            file_types = [file_types]
+        
+        count = 0
+        if os.path.isdir(self.location):
+            for root, _, files in os.walk(self.location):
+                # Calculate the current depth
+                current_depth = root[len(self.location):].count(os.sep)
+                if max_depth is not None and current_depth > max_depth:
+                    # If the current depth exceeds max_depth, skip this directory
+                    continue
+
+                for file in files:
+                    if any(file.endswith(ft) for ft in file_types):
+                        count += 1
+        elif os.path.isfile(self.location):
+            if any(self.location.endswith(ft) for ft in file_types):
+                count = 1
+
+        return count
+    def auto_update_location(self, max_depth=None):
+        """
+        Automatically searches for a unique file of the given file_type in the location
+        and updates the location attribute to point to that file. 
+        The search can be limited by specifying a max_depth.
+        """
+        if self.file_type is None:
+            return
+        
+        if os.path.isdir(self.location):
+            matching_files = []
+            for root, dirs, files in os.walk(self.location):
+                # Calculate the current depth
+                current_depth = root[len(self.location):].count(os.sep)
+                if max_depth is not None and current_depth > max_depth:
+                    # If the current depth exceeds max_depth, skip this directory
+                    dirs[:] = []  # Clear dirs to prevent os.walk from going deeper
+                    continue
+
+                for file in files:
+                    if file.endswith(self.file_type):
+                        matching_files.append(os.path.join(root, file))
+            
+            if len(matching_files) == 1:
+                self.location = matching_files[0]
+            elif len(matching_files) > 1:
+                print(f"Warning: Multiple files found matching {self.file_type}. Location not updated.")
+            else:
+                print(f"No files found matching {self.file_type}.")
+
+    
+        
 
 ###################################################################################
 # Functions for constructing Basic Informants from pre-existing directory structures:
 
+
+def get_folder_path_sequences(root_folder) -> list:
+    """
+    Retrieves folder path sequences for all files accessible from within the specified root folder.
+
+    Args:
+        root_folder (str): Root folder path.
+
+    Returns:
+        list: List of folder sequences.
+    """
+    folder_sequences = []
+
+    # Define a helper function to process files in a single folder
+    def process_files_in_folder(args):
+        folder_path, files = args
+        sequences = []
+        for file in files:
+            # Get the relative path to the file from the root folder
+            relative_path = os.path.relpath(os.path.join(folder_path, file), root_folder)
+            
+            # Split the relative path into a list of folder names
+            folder_sequence = relative_path.split(os.path.sep)
+            sequences.append(folder_sequence)
+        return sequences
+
+    # Collect all folder paths and file lists
+    folder_files_list = [(folder_path, files) for folder_path, _, files in os.walk(root_folder)]
+
+    # Use ThreadPoolExecutor to process folders in parallel
+    with ThreadPoolExecutor() as executor:
+        results = list(executor.map(process_files_in_folder, folder_files_list))
+
+    # Flatten the list of lists
+    folder_sequences = [item for sublist in results for item in sublist]
+
+    return folder_sequences
+
 # Define the get_folder_path_sequences function, which is to be used as a sub-routine in create_file_informant_list_from_folder.
-def get_folder_path_sequences(root_folder)->list:
+def get_folder_path_sequences_old(root_folder)->list:
     """
     Retrieves folder path sequences for all files accessible from within the specified root folder.
 
@@ -310,10 +457,67 @@ def get_folder_path_sequences(root_folder)->list:
 
     return folder_sequences
 
-def create_file_informant_list_from_folder(root_folder, 
+def create_file_informant_list_from_folder(root_folder,
+                                           explicit=True,
+                                           suppress=True,
+                                           use_location=False, 
+                                           attribute_sequence=[], 
+                                           informant_class=None, 
+                                           **kwargs)->list:
+    """
+    Extracts file informants from a folder.
+
+    Args:
+        root_folder (str): Root folder path.
+        use_location (bool): Whether the file location is to be stored in the informant attributes.
+        attribute_sequence (list): Designates how to assign folder names as attributes of the informant.
+        informant_class: Subclass of Informant to be used.
+        **kwargs: Additional keyword arguments.
+
+    Returns:
+        list: List of file informants.
+    """
+
+    # Initialize a default class_example of the informant_class.
+    # This will allow us to obtain the relevant kwargs for constructing individual informants of the desired class.
+    class_example = informant_class(explicit=explicit, suppress=suppress)
+
+    # Get the folder_sequences for all files under the chosen root_folder
+    folder_sequences = get_folder_path_sequences(root_folder)
+
+    # Define a helper function for creating an informant
+    def create_informant(file_folder_sequence):
+        # Set the default attributes from the default class_example
+        arguments_dictionary = class_example.__dict__.copy()
+
+        if explicit:
+            arguments_dictionary.update(**kwargs)
+
+        # Store the location of the file if desired and applicable
+        if use_location:
+            arguments_dictionary.update({'location': os.path.join(root_folder, *file_folder_sequence)})
+
+        # Retrieve the attributes that are designated by the path to the file
+        arguments_dictionary.update(dict(zip(attribute_sequence, file_folder_sequence)))
+
+        # Store the remaining attributes that are uniform throughout the folder
+        arguments_dictionary.update({key: kwargs.get(key, arguments_dictionary.get(key)) for key in arguments_dictionary})
+
+        # Initialize and return the current file informant
+        return informant_class(explicit=explicit, suppress=suppress, informants=kwargs.get('informants', []), **arguments_dictionary)
+
+    # Use ThreadPoolExecutor to create informants in parallel
+    informant_list = []
+    with ThreadPoolExecutor() as executor:
+        informant_list = list(executor.map(create_informant, folder_sequences))
+
+    return informant_list
+
+def create_file_informant_list_from_folder_old(root_folder, 
                                            use_location=False, 
                                            attribute_sequence=[], 
                                            informant_class = File_Informant, 
+                                               suppress=True,
                                            **kwargs)->list:
     """
     Extracts file informants from a folder.
@@ -355,12 +559,12 @@ def create_file_informant_list_from_folder(root_folder,
         arguments_dictionary.update({key:kwargs.get(key, arguments_dictionary[key]) for key in arguments_dictionary})
 
         # Initialize and append the current file informant
-        this_informant = informant_class(informants=kwargs.get('informants', []),**arguments_dictionary)
+        this_informant = informant_class(informants=kwargs.get('informants', []),suppress=suppress,**arguments_dictionary)
         informant_list.append(this_informant)
 
     return(informant_list)
 
-def convert_to_informant_class(informant:Informant, new_informant_class, suppress=False, clip=True, push=False, warn=True, **kwargs):
+def convert_to_informant_class(informant:Informant, new_informant_class, suppress=False, clip=True, push=False, **kwargs):
     """
     clip (bool) : Whether to restrict transferred attributes only to those attributes that are necessarily defined for all instances of the initial informant's class.
     If clip is False, then additional attributes of the informant that extend beyond those that must belong to all instances of its class are included in the transfer.
@@ -368,14 +572,14 @@ def convert_to_informant_class(informant:Informant, new_informant_class, suppres
     push (bool) : Whether to restrict transferred attributes to those attributes that are necessarily defined for all instances of the new informant class.
     If push is True, then additional attributes of the original informant that extend beyond those that must belong to all instances of the new class are transfered to the converted informant.
 
-    True push overrides True clip. 
+    True push overrides True clip. NOTE: 2024-8-8: Looking back, these are probably not mutually exclusive...
 
     prevent (bool) : 
     suppress (bool) : Whether to ignore warnings regarding attributes that may not be populated in the final converted informant.
     """
     warning = None
     informant_class_inheritance_name_list = [item.__name__ for item in get_informant_class_mro(informant.__class__)]
-    if warn and new_informant_class.__name__ not in informant_class_inheritance_name_list:
+    if not suppress and new_informant_class.__name__ not in informant_class_inheritance_name_list:
             warning = f"WARNING: Converted Informant '{informant.name}' of class '{informant.informant_class}' to informant class '{new_informant_class.__name__},' but the '{informant.informant_class}' informant class was not a descendent from '{new_informant_class.__name__}.' Some attributes of the converted informant may therefore be unpopulated or inappropriately constructed, and one may wish to check the converted informant for veracity. This warning has been added as an attribute."
             if not suppress:
                 print(warning)
@@ -391,7 +595,7 @@ def convert_to_informant_class(informant:Informant, new_informant_class, suppres
 
     attributes_to_store.update(kwargs)
 
-    new_informant = new_informant_class(**attributes_to_store)
+    new_informant = new_informant_class(suppress=suppress, **attributes_to_store)
     if push:
         new_informant.__dict__.update(attributes_to_store)
     
@@ -517,6 +721,12 @@ class Informant_Dataframe(Informant):
                 continue
 
         return self.df.loc[filtered_indices].copy(deep=True)
+
+    def informant_dict_list(self):
+        return [x.__dict__ for x in self.df['informant']]
+
+    def informant_attribute_list(self, attribute):
+        return [x.__dict__[attribute] for x in self.df['informant']]
 
 ############################################################################################################################################
 if __name__ == "__main__":

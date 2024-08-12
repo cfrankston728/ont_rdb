@@ -9,10 +9,10 @@ from informant_class import Informant, Directory_Informant, File_Informant
 """ informant_class_example_dataframe = pd.DataFrame({'informant_class':[], 'example_list':[]})
 informant_class_example_dictionary = dict() """
 
-# Note: January 13, 2024: Include ability to store fully-populated examples of informant classes into an informant_class_example dataframe. []
-# Enable the user to include examples only of highly specific informants, and to construct and store examples of more general informants using the convert_to_informant_class, get_distinct_informant_class_attributes, and get_informant_class_inheritance_list functions. []
+# Note: January 13, 2024: Include ability to store fully-populated examples of informant classes into an informant_class_example dataframe.
+# Enable the user to include examples only of highly specific informants, and to construct and store examples of more general informants using the convert_to_informant_class, get_distinct_informant_class_attributes, and get_informant_class_inheritance_list functions.
 
-# Note: 2024-8-8: Plan to make Algorithm and Parameter informants a class in informant_class.py, since they seem to have general utility beyond any specific ontology for computational projects.
+
 class DataBase(Informant):
     def __init__(self,**kwargs):
         super().__init__(**kwargs)
@@ -25,11 +25,7 @@ class Algorithm(Informant):
         super().__init__(**kwargs)
         self.parameter_descriptions = kwargs.get('parameter_descriptions', None)
         self.script_path = kwargs.get('script_path', None)
-
-class File_Set_Element(File_Informant):
-    def __init__(self,**kwargs):
-        super().__init__(**kwargs)
-        self.file_set = kwargs.get('file_set', None)
+            
 
 class Bio_Source(Informant):
     def __init__(self, **kwargs):
@@ -136,17 +132,6 @@ class Computational_Bio_File_Set(File_Set, Computational_Bio_Source):
         super().__init__(**kwargs)
         self.computational_bio_file_type = kwargs.get('computational_bio_file_type', None)
 
-class Computational_Genome_Bio_File_Set(Computational_Bio_File_Set):
-    def __init__(self,**kwargs):
-        super().__init__(**kwargs)
-        self.computational_genome_bio_file_type = kwargs.get('computational_genome_bio_file_type', None)
-
-class Computational_Common_Genome_Bio_File_Set(Computational_Genome_Bio_File_Set):
-    def __init__(self,**kwargs):
-        super().__init__(**kwargs)
-        self.computational_genome_bio_file_type = kwargs.get('computational_genome_bio_file_type', None)
-        self.genome_assembly_name = kwargs.get('genome_assembly_name', None)
-
 class Bed_File_Set(Computational_Bio_File_Set):
     def __init__(self,**kwargs):
         super().__init__(**kwargs)
@@ -186,13 +171,6 @@ class Computational_Genome_Bio_File(Computational_Bio_File):
         super().__init__(**kwargs)
         self.genome_assembly_name = kwargs.get('genome_assembly_name', None)
         self.aliases = kwargs.get('aliases', None)
-
-class Chromosome_File(Computational_Genome_Bio_File):
-    def __init__(self,**kwargs):
-        super().__init__(**kwargs)
-        self.genome_assembly_name = kwargs.get('genome_assembly_name', None)
-        self.aliases = kwargs.get('aliases', None)
-        self.chromosome = kwargs.get('chromosome', None)
 
 class Curried_HiC_Loop_Caller(HiC_Loop_Caller):
     """
@@ -303,28 +281,12 @@ class BedPe_File(Computational_Genome_Bio_File):
         self.file_type = '.bedpe'
         self.gz = kwargs.get('gz', None)
 
-class Pairs_File(Computational_Genome_Bio_File):
-    def __init__(self, **kwargs):
-        suppress = kwargs.get('suppress',False)
-        super().__init__(**kwargs)
-        self.file_type = '.pairs'
-        self.gz = kwargs.get('gz', None)
-        self.chr1 = kwargs.get('chr1',1)
-        self.pos1 = kwargs.get('pos1',2)
-        self.chr2 = kwargs.get('chr2',3)
-        self.pos2 = kwargs.get('pos2',4)
-        if not suppress:
-            print(f"Check to verify chromosome and position arguments.")
-            
-        
-
 class ChIP_seq_bigWig_File(bigWig_File):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.bigWig_type = 'ChIP_seq'
 
 class HiC_Loops_File(BedPe_File, HiC_Feature_File):
-    # July 3, 2024: NOTE: I may want to include the HiC file, Loop_Caller and Parameter settings as required attributes for this kind of informant. []
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.feature_type = 'HiC_Loop'
@@ -353,7 +315,6 @@ class ChIP_seq_PeakCount_Over_Bed_File(Bed_File):
         self.target = kwargs.get('target', None)
 
 class HiC_TAD_Boundary_Bed_File(Bed_File, HiC_Feature_File):
-    # July 3, 2024: NOTE: I may want to include the HiC file, TAD_Caller and Parameter settings as required attributes for this kind of informant. []
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.feature_type = 'HiC_TAD_Boundary'
@@ -364,7 +325,6 @@ class ATAC_seq_Peak_File(Peak_File):
         self.target = 'ATAC_seq'
 
 class ChIP_seq_bigWigAverage_Over_Bed_File(bigWigAverage_Over_Bed_File):
-    # July 3, 2024: NOTE: I may want to include the bed file and bigwig file as required attributes for this kind of informant. []
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.bigWig_type = 'ChIP_seq'
