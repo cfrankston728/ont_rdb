@@ -2,3 +2,4 @@
 logs/
 .snakemake/
 __pycache__
+interactive_log/
