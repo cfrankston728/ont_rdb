@@ -4,8 +4,11 @@ import swifter
 from datetime import datetime
 import re
 import shutil
+import copy
+import numpy as np
 
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 #import sys
 #sys.path.append('/home/cfrankston/Projects/ont_rdb/ont_rdb')
@@ -178,6 +181,9 @@ class Informant:
         self.algorithm = kwargs.get('algorithm', None)
         self.algorithmic_parameters = kwargs.get('algorithmic_parameters', None) # Since some other informants in the current ontology have 'parameters' as an attribute, I named this "algorithmic_parameters".
         self.constructor_command = kwargs.get('constructor_command', '')
+
+
+        #self.search_depth = kwargs.get('search_depth',2)
         ###########################################################################
         # Initialize attributes that will be stored for every Informant and by default do NOT reference kwargs:        
         self.informant_class = self.__class__.__name__
@@ -203,6 +209,48 @@ class Informant:
                             print(f"Warning: Attribute '{key}' was not set explicitly because '{key}' by default does not reference kwargs and 'overwrite' is False. To initialize an Informant object with an explicit value of '{key}', 'overwrite' must be set to True. Note that overwriting such a key can have unexpected effects and may lead to errors, and therefore should be avoided if possible.")
                     else:
                         setattr(self, key, value)
+    """ def __getattr__(self, attribute):
+        # 1. Check if the attribute is directly present
+        print(f"called __getattr__ for attribute {attribute}")
+        if attribute in self.__dict__:
+            print(f"attribute {attribute} is in dictionary.")
+            return self.__dict__[attribute]
+        print(f"attribute {attribute} is not in dictionary.")
+        # 2. Ensure that algorithmic_parameters exists and is not None using direct dictionary access
+        if 'algorithmic_parameters' in self.__dict__ and self.__dict__['algorithmic_parameters'] and attribute in self.__dict__['algorithmic_parameters']:
+            print(f"attribute {attribute} is in algorithmic parameters.")
+            return self.__dict__['algorithmic_parameters'][attribute]
+        print(f"attribute {attribute} is not in algorithmic parameters.")
+        # 3. Recursively search within informants up to a certain depth
+        def recursive_search(obj, attr, depth):
+            print(f'searching recursively for {attr} with depth {depth}')
+            if depth <= 0 or obj is None:
+                return None
+            print(f'depth of {depth} is positive...')
+            
+            print(f'checking for existing, nonempty algorithmic parameters and attribute {attr} present there...')
+            if 'algorithmic_parameters' in obj.__dict__ and attr in obj.__dict__['algorithmic_parameters']:
+                print(f'found attribute {attr}.')
+                return obj.__dict__['algorithmic_parameters'][attr]
+            
+            print(f'attribute {attr} not found in algorithmic parameters, recursing on informant')
+            # Recurse if there's an informant in algorithmic_parameters
+            if 'algorithmic_parameters' in obj.__dict__ and obj.__dict__['algorithmic_parameters'] and 'informant' in obj.__dict__['algorithmic_parameters'] and obj.__dict__['algorithmic_parameters']['informant']:
+                return recursive_search(obj.__dict__['algorithmic_parameters']['informant'], attr, depth - 1)
+            
+            print(f'attribute {attr} not found in informant parameters, recursing on informant')
+            return None
+        
+        # Start recursive search
+        this_depth = self.__dict__.get('search_depth', 2)
+        result = recursive_search(self, attribute, this_depth)
+        if result is not None:
+            print(f'attribute {attribute} is {result}')
+            return result
+        
+        # If nothing is found, raise an AttributeError
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{attribute}'") """
+
     def add_tag(self, tag):
         """
         Add a tag to the list of tags associated with the informant.
@@ -314,22 +362,6 @@ class Directory_Informant(Informant):
         if this_file_list == 'Invalid folder path':
             return -1
         return len(this_file_list)
-
-class File_Informant(Directory_Informant):
-    def __init__(self,**kwargs):
-        super().__init__(**kwargs)
-        self.file_type = kwargs.get('file_type', None)
-    def rename_location(self, new_location):
-        # Check if the file exists at the current location
-        if os.path.exists(self.location):
-            # Move the file to the new location
-            shutil.move(self.location, new_location)
-            # Update the location attribute
-            self.location = new_location
-        else:
-            print(f"File does not exist at {self.location}")
-    def is_populated(self):
-        return os.path.exists(self.location)
     def loc_type_count(self, file_types=None, max_depth=None):
         if file_types is None:
             if self.file_type is not None:
@@ -357,6 +389,55 @@ class File_Informant(Directory_Informant):
                 count = 1
 
         return count
+
+class File_Informant(Directory_Informant):
+    def __init__(self,**kwargs):
+        super().__init__(**kwargs)
+        self.file_type = kwargs.get('file_type', None)
+    def rename_location_old(self, new_location):
+        # Check if the file exists at the current location
+        if os.path.exists(self.location):
+            # Move the file to the new location
+            shutil.move(self.location, new_location)
+            # Update the location attribute
+            self.location = new_location
+        else:
+            print(f"File does not exist at {self.location}")
+
+    def rename_location(self, new_location):
+        """
+        Renames the location of the file or directory. If the location is a directory,
+        all contents of the old directory will be moved to the new directory.
+        """
+        # Check if the current location exists
+        if os.path.exists(self.location):
+            # Check if the location is a directory
+            if os.path.isdir(self.location):
+                # Ensure the new location is a directory
+                if not os.path.exists(new_location):
+                    os.makedirs(new_location)
+                # Move all contents of the directory to the new location
+                for item in os.listdir(self.location):
+                    source = os.path.join(self.location, item)
+                    destination = os.path.join(new_location, item)
+                    if os.path.isdir(source):
+                        shutil.move(source, destination)
+                    else:
+                        shutil.move(source, new_location)
+                # Remove the old directory if it's empty
+                if not os.listdir(self.location):
+                    os.rmdir(self.location)
+            else:
+                # If it's a file, move the file to the new location
+                shutil.move(self.location, new_location)
+            
+            # Update the location attribute
+            self.location = new_location
+        else:
+            print(f"File or directory does not exist at {self.location}")
+    
+    def is_populated(self):
+        return os.path.exists(self.location)
     def auto_update_location(self, max_depth=None):
         """
         Automatically searches for a unique file of the given file_type in the location
@@ -591,7 +672,7 @@ def convert_to_informant_class(informant:Informant, new_informant_class, suppres
         source_attribute_names = get_informant_class_attributes(informant.__class__)
         attributes_to_store = {attribute_name:informant.__dict__[attribute_name] for attribute_name in source_attribute_names}
     else:
-        attributes_to_store = informant.__dict__
+        attributes_to_store = copy.deepcopy(informant.__dict__)  # Deep copy the dictionary to avoid changes to the original informant
 
     attributes_to_store.update(kwargs)
 
@@ -604,6 +685,38 @@ def convert_to_informant_class(informant:Informant, new_informant_class, suppres
         new_informant.__dict__.update({'warning':warning})
     return new_informant
 
+# Function to be used for parallel filtering
+def process_chunk(df_chunk, expression, additional_context, absent, escape_symbol):
+            filtered_indices = []
+            expression = f"({expression})"
+            expression = expression.replace(f"{escape_symbol}self", "informant")
+            attribute_names = set(re.findall(rf'{escape_symbol}(\w+)', expression))
+
+            for index, row in df_chunk.iterrows():
+                informant = row['informant']
+                modified_expression = expression
+
+                for attr in attribute_names:
+                    attr_exists = hasattr(informant, attr)
+                    if attr_exists:
+                        modified_expression = modified_expression.replace(f"@{attr}", f"informant.{attr}")
+                    else:
+                        pattern = rf'(?<=\(|&|\|) *[^()]*{escape_symbol}{attr}[^()]* *(?=\)|&|\|)'
+                        substring = re.search(pattern, modified_expression)
+                        if substring:
+                            modified_expression = modified_expression.replace(substring.group(), str(absent))
+
+                eval_context = {'informant': informant, 'isinstance': isinstance}
+                if additional_context:
+                    eval_context.update(additional_context)
+                try:
+                    if eval(modified_expression, eval_context):
+                        filtered_indices.append(index)
+                except Exception as e:
+                    print(f"Error evaluating expression: {e}")
+                    continue
+
+            return df_chunk.loc[filtered_indices]
 
 class Informant_Dataframe(Informant):
     def __init__(self, pd_dict = {'name':[], 'informant':[], 'entry_time':[], 'verification_status':[]}, **kwargs):
@@ -646,11 +759,11 @@ class Informant_Dataframe(Informant):
             else:
                 print(f"The informant name {this_name} was already stored in the dataframe. Since 'replace' is False, the old informant was not replaced.")
         
-    def save_df(self, df_pkl_path):
-        self.df.to_pickle(df_pkl_path)
-
-
-    def filter(self, expression, additional_context=None, absent=False):
+    def save_df(self, df_pkl_path, protocol=4):
+        with open(df_pkl_path, 'wb') as f:
+            self.df.to_pickle(f, protocol=protocol)
+    
+    def filter(self, expression, additional_context=None, absent=False, escape_symbol='@'):
         """
         Filters the DataFrame based on a custom boolean expression that evaluates attributes of the 'informant' objects.
 
@@ -660,7 +773,11 @@ class Informant_Dataframe(Informant):
 
         Args:
             expression (str): A boolean expression used for filtering. Attributes of 'informant' should be prefixed with '@'.
-                              Logical operators '&' (AND) and '|' (OR) can be used.
+            additional_context (dict): Optional context for the evaluation.
+            absent (bool): Determines how missing attributes are handled. Default is False.
+            swap_symbol (str): Symbol to be swapped with the escape symbol in the expression.
+            escape_symbol (str): Symbol used as the escape character. Default is "@".
+    
 
         Returns:
             pd.DataFrame: A filtered DataFrame containing rows where the expression evaluates to True.
@@ -685,10 +802,10 @@ class Informant_Dataframe(Informant):
         expression = f"({expression})"
 
         # The special escape string @informant will refer to the entire informant.
-        expression = expression.replace("@self", "informant")
+        expression = expression.replace(f"{escape_symbol}self", "informant")
 
         # Extract the attribute names of interest
-        attribute_names = set(re.findall(r'@(\w+)', expression))
+        attribute_names = set(re.findall(rf'{escape_symbol}(\w+)', expression))
 
         for index, row in self.df.iterrows():
             informant = row['informant']
@@ -697,14 +814,14 @@ class Informant_Dataframe(Informant):
 
             # Check that the attribute exists
             for attr in attribute_names:
-                attr_exists = hasattr(informant, attr)
+                attr_exists = hasattr(informant, attr) or (attr in list(informant.__dict__.keys()))
 
                 if attr_exists:
                     # Replace '@attribute' with 'informant.attribute'
-                    modified_expression = modified_expression.replace(f"@{attr}", f"informant.{attr}")
+                    modified_expression = modified_expression.replace(f"{escape_symbol}{attr}", f"informant.__dict__['{attr}']")
                 else:
                     # Replace the entire condition involving the missing attribute with the absent argument.
-                    pattern = rf'(?<=\(|&|\|) *[^()]*@{attr}[^()]* *(?=\)|&|\|)'
+                    pattern = rf'(?<=\(|&|\|) *[^()]*{escape_symbol}{attr}[^()]* *(?=\)|&|\|)'
                     substring = re.search(pattern, modified_expression)
                     if substring:
                         modified_expression = modified_expression.replace(substring.group(), str(absent))
@@ -721,12 +838,63 @@ class Informant_Dataframe(Informant):
                 continue
 
         return self.df.loc[filtered_indices].copy(deep=True)
+    
+    def parallel_filter(self, expression, additional_context=None, absent=False, num_workers=None, escape_symbol ='@'):
+        """
+        Parallelized version of the filter method.
+        """
+        if num_workers is None:
+            num_workers = os.cpu_count()  # Default to the number of available CPU cores
 
+        # Split DataFrame into chunks
+        chunks = np.array_split(self.df, num_workers)
+        
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            futures = [
+                executor.submit(process_chunk, chunk, expression, additional_context, absent, escape_symbol)
+                for chunk in chunks
+            ]
+            results = pd.concat([future.result() for future in futures])
+
+        return results
+    
     def informant_dict_list(self):
         return [x.__dict__ for x in self.df['informant']]
 
     def informant_attribute_list(self, attribute):
         return [x.__dict__[attribute] for x in self.df['informant']]
+
+def create_informant_from_pandas_row(row, informant_class, **kwargs):
+    this_informant_attribute_dict = row.to_dict()
+    this_informant = informant_class(**this_informant_attribute_dict, explicit=True, suppress=True)
+    this_informant.__dict__.update(kwargs)
+    return this_informant
+
+def construct_informant_dataframe_from_pandas(pandas_df, informant_class=Informant, **kwargs):
+    informant_list = []
+    
+    # Use ProcessPoolExecutor for parallel processing
+    with ProcessPoolExecutor() as executor:
+        futures = [executor.submit(create_informant_from_pandas_row, row, informant_class, **kwargs) for _, row in pandas_df.iterrows()]
+        
+        for future in futures:
+            informant_list.append(future.result())
+    
+    this_informant_df = Informant_Dataframe()
+    this_informant_df.append(informant_list)
+    return this_informant_df
+
+def construct_informant_dataframe_from_pandas_old(pandas_df, informant_class=Informant, **kwargs):
+    informant_list = []
+    for index, row in pandas_df.iterrows():
+        this_informant_attribute_dict = row.to_dict()
+        this_informant = informant_class(**this_informant_attribute_dict, explicit=True, suppress=True)
+        this_informant.__dict__.update(kwargs)
+        informant_list.append(this_informant)
+    this_informant_df = Informant_Dataframe()
+    this_informant_df.append(informant_list)
+    return this_informant_df
+
 
 ############################################################################################################################################
 if __name__ == "__main__":
