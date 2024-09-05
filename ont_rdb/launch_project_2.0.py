@@ -77,6 +77,7 @@ def create_explorer_notebook(project_dir, project_name):
                 "source": [
                     "from informant_class import *\n",
                     "import os\n",
+                    "import sys\n",
                     "import shutil\n",
                     "import subprocess\n",
                     "import pandas as pd\n",
