@@ -7,6 +7,7 @@ import shutil
 import copy
 import numpy as np
 
+import gc
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
@@ -324,6 +325,28 @@ class Informant:
                                                                                                 level=1, 
                                                                                                 tallying_informant=self)
         # The only alternative is that the informant has no source informant names. In this case there is nothing to update.
+    
+    def get_construction_chain(self, max_depth=3):
+        level_count = 0
+        construction_chain = []
+        this_informant = self
+        this_algorithm = this_informant.algorithm
+        this_algorithmic_parameters = this_informant.algorithmic_parameters  # Fixed naming inconsistency
+
+        while this_algorithm is not None and level_count < max_depth:
+            construction_chain.append((this_algorithm, this_algorithmic_parameters))
+            level_count += 1
+            if this_algorithmic_parameters is not None:
+                if 'informant' in this_algorithmic_parameters and this_algorithmic_parameters['informant'] is not None:
+                    this_informant = this_algorithmic_parameters['informant']
+                    this_algorithm = this_informant.algorithm
+                    this_algorithmic_parameters = this_informant.algorithmic_parameters
+                else:
+                    break  # Exit if 'informant' is missing or None
+        return construction_chain
+
+
+
 
 #################################################################################################
 # A useful function for the pruning away of redundant information stored in an informant, with reference to a pre-constructed dataframe
@@ -501,7 +524,7 @@ def get_folder_path_sequences(root_folder) -> list:
         return sequences
 
     # Collect all folder paths and file lists
-    folder_files_list = [(folder_path, files) for folder_path, _, files in os.walk(root_folder)]
+    folder_files_list = [(folder_path, files) for folder_path, _, files in os.walk(root_folder, followlinks=True)]
 
     # Use ThreadPoolExecutor to process folders in parallel
     with ThreadPoolExecutor() as executor:
@@ -513,7 +536,7 @@ def get_folder_path_sequences(root_folder) -> list:
     return folder_sequences
 
 # Define the get_folder_path_sequences function, which is to be used as a sub-routine in create_file_informant_list_from_folder.
-def get_folder_path_sequences_old(root_folder)->list:
+def get_folder_path_sequences_outdated_1(root_folder)->list:
     """
     Retrieves folder path sequences for all files accessible from within the specified root folder.
 
@@ -539,6 +562,72 @@ def get_folder_path_sequences_old(root_folder)->list:
     return folder_sequences
 
 def create_file_informant_list_from_folder(root_folder,
+                                           explicit=True,
+                                           suppress=True,
+                                           use_location=False, 
+                                           attribute_sequence=[], 
+                                           informant_class=None, 
+                                           reverse_attribute_sequence=False,
+                                           **kwargs) -> list:
+    """
+    Extracts file informants from a folder.
+
+    Args:
+        root_folder (str): Root folder path.
+        use_location (bool): Whether the file location is to be stored in the informant attributes.
+        attribute_sequence (list): Designates how to assign folder names as attributes of the informant.
+        reverse_attribute_sequence (bool): If True, assign attributes from the leaf folder upward.
+        informant_class: Subclass of Informant to be used.
+        **kwargs: Additional keyword arguments.
+
+    Returns:
+        list: List of file informants.
+    """
+
+    # Initialize a default class_example of the informant_class to get relevant kwargs
+    class_example = informant_class(explicit=explicit, suppress=suppress)
+
+    # Get the folder sequences for all files under the root_folder
+    folder_sequences = get_folder_path_sequences(root_folder)
+
+    # Define a helper function for creating an informant
+    def create_informant(file_folder_sequence):
+        # Set the default attributes from the default class_example
+        arguments_dictionary = class_example.__dict__.copy()
+
+        if explicit:
+            arguments_dictionary.update(**kwargs)
+
+        # Store the location of the file if desired and applicable
+        if use_location:
+            arguments_dictionary.update({'location': os.path.join(root_folder, *file_folder_sequence)})
+
+        # If no attribute sequence is specified, skip assigning folder attributes
+        if len(attribute_sequence) > 0:
+            # Handle reversed attribute assignment (from leaf to root)
+            if reverse_attribute_sequence:
+                file_folder_sequence = reversed(file_folder_sequence)
+            
+            # Assign attributes based on folder structure
+            # Ensure we do not mismatch folder depth with attribute_sequence length
+            seq_length = min(len(attribute_sequence), len(file_folder_sequence))
+            attributes = dict(zip(attribute_sequence[:seq_length], file_folder_sequence[:seq_length]))
+            arguments_dictionary.update(attributes)
+
+        # Store the remaining attributes that are uniform throughout the folder
+        arguments_dictionary.update({key: kwargs.get(key, arguments_dictionary.get(key)) for key in arguments_dictionary})
+
+        # Initialize and return the current file informant
+        return informant_class(explicit=explicit, suppress=suppress, informants=kwargs.get('informants', []), **arguments_dictionary)
+
+    # Use ThreadPoolExecutor to create informants in parallel
+    informant_list = []
+    with ThreadPoolExecutor() as executor:
+        informant_list = list(executor.map(create_informant, folder_sequences))
+
+    return informant_list
+
+def create_file_informant_list_from_folder_outdated_2(root_folder,
                                            explicit=True,
                                            suppress=True,
                                            use_location=False, 
@@ -594,7 +683,7 @@ def create_file_informant_list_from_folder(root_folder,
 
     return informant_list
 
-def create_file_informant_list_from_folder_old(root_folder, 
+def create_file_informant_list_from_folder_outdated_1(root_folder, 
                                            use_location=False, 
                                            attribute_sequence=[], 
                                            informant_class = File_Informant, 
@@ -645,6 +734,7 @@ def create_file_informant_list_from_folder_old(root_folder,
 
     return(informant_list)
 
+
 def convert_to_informant_class(informant:Informant, new_informant_class, suppress=False, clip=True, push=False, **kwargs):
     """
     clip (bool) : Whether to restrict transferred attributes only to those attributes that are necessarily defined for all instances of the initial informant's class.
@@ -685,38 +775,86 @@ def convert_to_informant_class(informant:Informant, new_informant_class, suppres
         new_informant.__dict__.update({'warning':warning})
     return new_informant
 
+# Generator to yield chunks lazily instead of creating multiple DataFrame chunks in memory
+def chunk_generator(df, chunk_size):
+    for start in range(0, len(df), chunk_size):
+        yield df.iloc[start:start + chunk_size]
+
+# Function to precompute attribute existence for all informants
+def precompute_attributes(df, attribute_names, escape_symbol='@'):
+    precomputed_attrs = {}
+    for index, row in df.iterrows():
+        informant = row['informant']
+        attr_status = {}
+        for attr in attribute_names:
+            attr_status[attr] = hasattr(informant, attr) or (attr in list(informant.__dict__.keys()))
+        precomputed_attrs[index] = attr_status
+    return precomputed_attrs
+
+# Function to be used for parallel filtering
+def process_chunk_draft(df_chunk, expression, additional_context, absent, precomputed_attrs, escape_symbol):
+    filtered_indices = []
+    expression = f"({expression})"
+    expression = expression.replace(f"{escape_symbol}self", "informant")
+    
+    for index, row in df_chunk.iterrows():
+        informant = row['informant']
+        modified_expression = expression
+        attr_status = precomputed_attrs[index]
+
+        for attr, exists in attr_status.items():
+            if exists:
+                modified_expression = modified_expression.replace(f"{escape_symbol}{attr}", f"informant.__dict__['{attr}']")
+            else:
+                pattern = rf'(?<=\(|&|\|) *[^()]*{escape_symbol}{attr}[^()]* *(?=\)|&|\|)'
+                substring = re.search(pattern, modified_expression)
+                if substring:
+                    modified_expression = modified_expression.replace(substring.group(), str(absent))
+
+        eval_context = {'informant': informant, 'isinstance': isinstance}
+        if additional_context:
+            eval_context.update(additional_context)
+        try:
+            if eval(modified_expression, eval_context):
+                filtered_indices.append(index)
+        except Exception as e:
+            print(f"Error evaluating expression: {e}")
+            continue
+
+    return df_chunk.loc[filtered_indices]
+
 # Function to be used for parallel filtering
 def process_chunk(df_chunk, expression, additional_context, absent, escape_symbol):
-            filtered_indices = []
-            expression = f"({expression})"
-            expression = expression.replace(f"{escape_symbol}self", "informant")
-            attribute_names = set(re.findall(rf'{escape_symbol}(\w+)', expression))
+    filtered_indices = []
+    expression = f"({expression})"
+    expression = expression.replace(f"{escape_symbol}self", "informant")
+    attribute_names = set(re.findall(rf'{escape_symbol}(\w+)', expression))
 
-            for index, row in df_chunk.iterrows():
-                informant = row['informant']
-                modified_expression = expression
+    for index, row in df_chunk.iterrows():
+        informant = row['informant']
+        modified_expression = expression
 
-                for attr in attribute_names:
-                    attr_exists = hasattr(informant, attr)
-                    if attr_exists:
-                        modified_expression = modified_expression.replace(f"@{attr}", f"informant.{attr}")
-                    else:
-                        pattern = rf'(?<=\(|&|\|) *[^()]*{escape_symbol}{attr}[^()]* *(?=\)|&|\|)'
-                        substring = re.search(pattern, modified_expression)
-                        if substring:
-                            modified_expression = modified_expression.replace(substring.group(), str(absent))
+        for attr in attribute_names:
+            attr_exists = hasattr(informant, attr)
+            if attr_exists:
+                modified_expression = modified_expression.replace(f"@{attr}", f"informant.{attr}")
+            else:
+                pattern = rf'(?<=\(|&|\|) *[^()]*{escape_symbol}{attr}[^()]* *(?=\)|&|\|)'
+                substring = re.search(pattern, modified_expression)
+                if substring:
+                    modified_expression = modified_expression.replace(substring.group(), str(absent))
 
-                eval_context = {'informant': informant, 'isinstance': isinstance}
-                if additional_context:
-                    eval_context.update(additional_context)
-                try:
-                    if eval(modified_expression, eval_context):
-                        filtered_indices.append(index)
-                except Exception as e:
-                    print(f"Error evaluating expression: {e}")
-                    continue
+        eval_context = {'informant': informant, 'isinstance': isinstance}
+        if additional_context:
+            eval_context.update(additional_context)
+        try:
+            if eval(modified_expression, eval_context):
+                filtered_indices.append(index)
+        except Exception as e:
+            print(f"Error evaluating expression: {e}")
+            continue
 
-            return df_chunk.loc[filtered_indices]
+    return df_chunk.loc[filtered_indices]
 
 class Informant_Dataframe(Informant):
     def __init__(self, pd_dict = {'name':[], 'informant':[], 'entry_time':[], 'verification_status':[]}, **kwargs):
@@ -839,6 +977,37 @@ class Informant_Dataframe(Informant):
 
         return self.df.loc[filtered_indices].copy(deep=True)
     
+    def parallel_filter_draft(self, expression, additional_context=None, absent=False, num_workers=None, chunk_size=1000, escape_symbol='@'):
+        """
+        Parallelized version of the filter method with memory optimizations.
+        """
+        if num_workers is None:
+            num_workers = os.cpu_count()  # Default to the number of available CPU cores
+
+        # Extract the attribute names of interest
+        attribute_names = set(re.findall(rf'{escape_symbol}(\w+)', expression))
+
+        # Precompute the attribute existence for each row
+        precomputed_attrs = precompute_attributes(self.df, attribute_names, escape_symbol)
+
+        # Create a generator to yield DataFrame chunks lazily
+        chunk_gen = chunk_generator(self.df, chunk_size)
+
+        results = []
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            futures = [
+                executor.submit(process_chunk, chunk, expression, additional_context, absent, precomputed_attrs, escape_symbol)
+                for chunk in chunk_gen
+            ]
+
+            # Collect results
+            for future in futures:
+                result_chunk = future.result()
+                results.append(result_chunk)
+                gc.collect()  # Trigger garbage collection after each chunk
+
+        return pd.concat(results)
+    
     def parallel_filter(self, expression, additional_context=None, absent=False, num_workers=None, escape_symbol ='@'):
         """
         Parallelized version of the filter method.
@@ -858,10 +1027,13 @@ class Informant_Dataframe(Informant):
 
         return results
     
-    def informant_dict_list(self):
+    def dfi(self):
+        return [x for x in self.df['informant']]
+
+    def dfid(self):
         return [x.__dict__ for x in self.df['informant']]
 
-    def informant_attribute_list(self, attribute):
+    def dfia(self, attribute):
         return [x.__dict__[attribute] for x in self.df['informant']]
 
 def create_informant_from_pandas_row(row, informant_class, **kwargs):

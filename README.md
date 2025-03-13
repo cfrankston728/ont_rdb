@@ -36,7 +36,7 @@ Within the ``ont_rdb`` package directory, the ``ontologies`` folder stores an ex
 
 ``ont_rdb`` constructs a dataframe representing an ontology's directed, rooted, acyclic graph (DRAG), and facilitates constructing generic examples from the ontology by populating terminal nodes in the graph (specific objects) and applying forgetful functors to map those specific objects onto corresponding examples of the more general objects they inherit from. The function ``convert_to_informant_class`` serves as this forgetful functor, with parameters that can adjust the manner in which one class is projected into another (ex: ``clip``, ``push``).
 
-<img src="ont_rdb/data/hic_ontology_digraph_1.png" alt="Alt text" title="example-digraph" width="400"/>
+<img src="ont_rdb/data/ont_rdb_graph_vis.png" alt="Alt text" title="example-digraph" width="400"/>
 
 The ``ont_rdb_explorer.ipynb`` script can be used to interact with the ontology defined by any chosen script in the ``ontologies`` folder. The script may be selected from a drop-down menu and imported. An **ontology dataframe** representing the associated directed graph can be constructed by following the simple directions in the Jupyter notebook.
 

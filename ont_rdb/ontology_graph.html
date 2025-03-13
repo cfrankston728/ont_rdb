@@ -1,0 +1,155 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 750px;
+                 background-color: #ffffff;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "red", "id": "Informant", "label": "Informant", "shape": "dot", "size": 33, "title": "Informant (Children: 11)"}, {"color": "blue", "id": "Directory_Informant", "label": "Directory_Informant", "shape": "dot", "size": 9, "title": "Directory_Informant (Children: 3)"}, {"color": "blue", "id": "Informant_Dataframe", "label": "Informant_Dataframe", "shape": "dot", "size": 0, "title": "Informant_Dataframe (Children: 0)"}, {"color": "blue", "id": "DataBase", "label": "DataBase", "shape": "dot", "size": 0, "title": "DataBase (Children: 0)"}, {"color": "blue", "id": "Algorithm", "label": "Algorithm", "shape": "dot", "size": 3, "title": "Algorithm (Children: 1)"}, {"color": "blue", "id": "Bio_Source", "label": "Bio_Source", "shape": "dot", "size": 6, "title": "Bio_Source (Children: 2)"}, {"color": "blue", "id": "Institution", "label": "Institution", "shape": "dot", "size": 6, "title": "Institution (Children: 2)"}, {"color": "blue", "id": "Article", "label": "Article", "shape": "dot", "size": 3, "title": "Article (Children: 1)"}, {"color": "blue", "id": "Website", "label": "Website", "shape": "dot", "size": 3, "title": "Website (Children: 1)"}, {"color": "blue", "id": "Laboratory", "label": "Laboratory", "shape": "dot", "size": 0, "title": "Laboratory (Children: 0)"}, {"color": "blue", "id": "Computational_Bio_Source", "label": "Computational_Bio_Source", "shape": "dot", "size": 9, "title": "Computational_Bio_Source (Children: 3)"}, {"color": "blue", "id": "Parameters", "label": "Parameters", "shape": "dot", "size": 3, "title": "Parameters (Children: 1)"}, {"color": "blue", "id": "File_Informant", "label": "File_Informant", "shape": "dot", "size": 9, "title": "File_Informant (Children: 3)"}, {"color": "blue", "id": "File_Set", "label": "File_Set", "shape": "dot", "size": 3, "title": "File_Set (Children: 1)"}, {"color": "blue", "id": "Project", "label": "Project", "shape": "dot", "size": 0, "title": "Project (Children: 0)"}, {"color": "blue", "id": "File_Set_Element", "label": "File_Set_Element", "shape": "dot", "size": 0, "title": "File_Set_Element (Children: 0)"}, {"color": "blue", "id": "Table_File", "label": "Table_File", "shape": "dot", "size": 0, "title": "Table_File (Children: 0)"}, {"color": "blue", "id": "Computational_Bio_File", "label": "Computational_Bio_File", "shape": "dot", "size": 3, "title": "Computational_Bio_File (Children: 1)"}, {"color": "blue", "id": "Feature_Identifier", "label": "Feature_Identifier", "shape": "dot", "size": 3, "title": "Feature_Identifier (Children: 1)"}, {"color": "blue", "id": "Cell_Line", "label": "Cell_Line", "shape": "dot", "size": 0, "title": "Cell_Line (Children: 0)"}, {"color": "blue", "id": "Tissue", "label": "Tissue", "shape": "dot", "size": 0, "title": "Tissue (Children: 0)"}, {"color": "blue", "id": "Computational_Bio_File_Set", "label": "Computational_Bio_File_Set", "shape": "dot", "size": 6, "title": "Computational_Bio_File_Set (Children: 2)"}, {"color": "blue", "id": "Company", "label": "Company", "shape": "dot", "size": 0, "title": "Company (Children: 0)"}, {"color": "blue", "id": "University", "label": "University", "shape": "dot", "size": 0, "title": "University (Children: 0)"}, {"color": "blue", "id": "Research_Paper", "label": "Research_Paper", "shape": "dot", "size": 0, "title": "Research_Paper (Children: 0)"}, {"color": "blue", "id": "Github_Repository", "label": "Github_Repository", "shape": "dot", "size": 0, "title": "Github_Repository (Children: 0)"}, {"color": "blue", "id": "Genome_Assembly", "label": "Genome_Assembly", "shape": "dot", "size": 0, "title": "Genome_Assembly (Children: 0)"}, {"color": "blue", "id": "HiC_Feature_Identifier", "label": "HiC_Feature_Identifier", "shape": "dot", "size": 6, "title": "HiC_Feature_Identifier (Children: 2)"}, {"color": "blue", "id": "HiC_TAD_Boundary_Caller", "label": "HiC_TAD_Boundary_Caller", "shape": "dot", "size": 3, "title": "HiC_TAD_Boundary_Caller (Children: 1)"}, {"color": "blue", "id": "HiC_Loop_Caller", "label": "HiC_Loop_Caller", "shape": "dot", "size": 3, "title": "HiC_Loop_Caller (Children: 1)"}, {"color": "red", "id": "Computational_Genome_Bio_File", "label": "Computational_Genome_Bio_File", "shape": "dot", "size": 24, "title": "Computational_Genome_Bio_File (Children: 8)"}, {"color": "blue", "id": "Computational_Genome_Bio_File_Set", "label": "Computational_Genome_Bio_File_Set", "shape": "dot", "size": 3, "title": "Computational_Genome_Bio_File_Set (Children: 1)"}, {"color": "blue", "id": "Bed_File_Set", "label": "Bed_File_Set", "shape": "dot", "size": 3, "title": "Bed_File_Set (Children: 1)"}, {"color": "blue", "id": "Computational_Common_Genome_Bio_File_Set", "label": "Computational_Common_Genome_Bio_File_Set", "shape": "dot", "size": 0, "title": "Computational_Common_Genome_Bio_File_Set (Children: 0)"}, {"color": "blue", "id": "bigWigAverage_Over_Bed_File_Set", "label": "bigWigAverage_Over_Bed_File_Set", "shape": "dot", "size": 3, "title": "bigWigAverage_Over_Bed_File_Set (Children: 1)"}, {"color": "blue", "id": "ChIP_seq_bigWigAverage_Over_Bed_File_Set", "label": "ChIP_seq_bigWigAverage_Over_Bed_File_Set", "shape": "dot", "size": 0, "title": "ChIP_seq_bigWigAverage_Over_Bed_File_Set (Children: 0)"}, {"color": "blue", "id": "Curried_HiC_TAD_Boundary_Caller", "label": "Curried_HiC_TAD_Boundary_Caller", "shape": "dot", "size": 0, "title": "Curried_HiC_TAD_Boundary_Caller (Children: 0)"}, {"color": "blue", "id": "Curried_HiC_Loop_Caller", "label": "Curried_HiC_Loop_Caller", "shape": "dot", "size": 0, "title": "Curried_HiC_Loop_Caller (Children: 0)"}, {"color": "blue", "id": "Chromosome_File", "label": "Chromosome_File", "shape": "dot", "size": 0, "title": "Chromosome_File (Children: 0)"}, {"color": "blue", "id": "HiC_Feature_File", "label": "HiC_Feature_File", "shape": "dot", "size": 6, "title": "HiC_Feature_File (Children: 2)"}, {"color": "blue", "id": "Genome_File", "label": "Genome_File", "shape": "dot", "size": 0, "title": "Genome_File (Children: 0)"}, {"color": "blue", "id": "HiC_File", "label": "HiC_File", "shape": "dot", "size": 0, "title": "HiC_File (Children: 0)"}, {"color": "blue", "id": "bigWig_File", "label": "bigWig_File", "shape": "dot", "size": 3, "title": "bigWig_File (Children: 1)"}, {"color": "blue", "id": "Bed_File", "label": "Bed_File", "shape": "dot", "size": 15, "title": "Bed_File (Children: 5)"}, {"color": "blue", "id": "BedPe_File", "label": "BedPe_File", "shape": "dot", "size": 3, "title": "BedPe_File (Children: 1)"}, {"color": "blue", "id": "Pairs_File", "label": "Pairs_File", "shape": "dot", "size": 0, "title": "Pairs_File (Children: 0)"}, {"color": "blue", "id": "HiC_Loops_File", "label": "HiC_Loops_File", "shape": "dot", "size": 0, "title": "HiC_Loops_File (Children: 0)"}, {"color": "blue", "id": "HiC_TAD_Boundary_Bed_File", "label": "HiC_TAD_Boundary_Bed_File", "shape": "dot", "size": 0, "title": "HiC_TAD_Boundary_Bed_File (Children: 0)"}, {"color": "blue", "id": "hicstraw_getMatrixZoomData_Parameters", "label": "hicstraw_getMatrixZoomData_Parameters", "shape": "dot", "size": 0, "title": "hicstraw_getMatrixZoomData_Parameters (Children: 0)"}, {"color": "blue", "id": "ChIP_seq_bigWig_File", "label": "ChIP_seq_bigWig_File", "shape": "dot", "size": 0, "title": "ChIP_seq_bigWig_File (Children: 0)"}, {"color": "blue", "id": "Peak_File", "label": "Peak_File", "shape": "dot", "size": 3, "title": "Peak_File (Children: 1)"}, {"color": "blue", "id": "bigWigAverage_Over_Bed_File", "label": "bigWigAverage_Over_Bed_File", "shape": "dot", "size": 3, "title": "bigWigAverage_Over_Bed_File (Children: 1)"}, {"color": "blue", "id": "PeakCount_Over_Bed_File", "label": "PeakCount_Over_Bed_File", "shape": "dot", "size": 0, "title": "PeakCount_Over_Bed_File (Children: 0)"}, {"color": "blue", "id": "ChIP_seq_PeakCount_Over_Bed_File", "label": "ChIP_seq_PeakCount_Over_Bed_File", "shape": "dot", "size": 0, "title": "ChIP_seq_PeakCount_Over_Bed_File (Children: 0)"}, {"color": "blue", "id": "ATAC_seq_Peak_File", "label": "ATAC_seq_Peak_File", "shape": "dot", "size": 0, "title": "ATAC_seq_Peak_File (Children: 0)"}, {"color": "blue", "id": "ChIP_seq_bigWigAverage_Over_Bed_File", "label": "ChIP_seq_bigWigAverage_Over_Bed_File", "shape": "dot", "size": 0, "title": "ChIP_seq_bigWigAverage_Over_Bed_File (Children: 0)"}]);
+                  edges = new vis.DataSet([{"arrows": "to", "from": "Informant", "to": "Directory_Informant", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Informant_Dataframe", "width": 1}, {"arrows": "to", "from": "Informant", "to": "DataBase", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Algorithm", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Bio_Source", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Institution", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Article", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Website", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Laboratory", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Computational_Bio_Source", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Parameters", "width": 1}, {"arrows": "to", "from": "Directory_Informant", "to": "File_Informant", "width": 1}, {"arrows": "to", "from": "Directory_Informant", "to": "File_Set", "width": 1}, {"arrows": "to", "from": "Directory_Informant", "to": "Project", "width": 1}, {"arrows": "to", "from": "File_Informant", "to": "File_Set_Element", "width": 1}, {"arrows": "to", "from": "File_Informant", "to": "Table_File", "width": 1}, {"arrows": "to", "from": "File_Informant", "to": "Computational_Bio_File", "width": 1}, {"arrows": "to", "from": "Algorithm", "to": "Feature_Identifier", "width": 1}, {"arrows": "to", "from": "Bio_Source", "to": "Cell_Line", "width": 1}, {"arrows": "to", "from": "Bio_Source", "to": "Tissue", "width": 1}, {"arrows": "to", "from": "File_Set", "to": "Computational_Bio_File_Set", "width": 1}, {"arrows": "to", "from": "Institution", "to": "Company", "width": 1}, {"arrows": "to", "from": "Institution", "to": "University", "width": 1}, {"arrows": "to", "from": "Article", "to": "Research_Paper", "width": 1}, {"arrows": "to", "from": "Website", "to": "Github_Repository", "width": 1}, {"arrows": "to", "from": "Computational_Bio_Source", "to": "Genome_Assembly", "width": 1}, {"arrows": "to", "from": "Computational_Bio_Source", "to": "Computational_Bio_File", "width": 1}, {"arrows": "to", "from": "Computational_Bio_Source", "to": "Computational_Bio_File_Set", "width": 1}, {"arrows": "to", "from": "Feature_Identifier", "to": "HiC_Feature_Identifier", "width": 1}, {"arrows": "to", "from": "HiC_Feature_Identifier", "to": "HiC_TAD_Boundary_Caller", "width": 1}, {"arrows": "to", "from": "HiC_Feature_Identifier", "to": "HiC_Loop_Caller", "width": 1}, {"arrows": "to", "from": "Computational_Bio_File", "to": "Computational_Genome_Bio_File", "width": 1}, {"arrows": "to", "from": "Computational_Bio_File_Set", "to": "Computational_Genome_Bio_File_Set", "width": 1}, {"arrows": "to", "from": "Computational_Bio_File_Set", "to": "Bed_File_Set", "width": 1}, {"arrows": "to", "from": "Computational_Genome_Bio_File_Set", "to": "Computational_Common_Genome_Bio_File_Set", "width": 1}, {"arrows": "to", "from": "Bed_File_Set", "to": "bigWigAverage_Over_Bed_File_Set", "width": 1}, {"arrows": "to", "from": "bigWigAverage_Over_Bed_File_Set", "to": "ChIP_seq_bigWigAverage_Over_Bed_File_Set", "width": 1}, {"arrows": "to", "from": "HiC_TAD_Boundary_Caller", "to": "Curried_HiC_TAD_Boundary_Caller", "width": 1}, {"arrows": "to", "from": "HiC_Loop_Caller", "to": "Curried_HiC_Loop_Caller", "width": 1}, {"arrows": "to", "from": "Computational_Genome_Bio_File", "to": "Chromosome_File", "width": 1}, {"arrows": "to", "from": "Computational_Genome_Bio_File", "to": "HiC_Feature_File", "width": 1}, {"arrows": "to", "from": "Computational_Genome_Bio_File", "to": "Genome_File", "width": 1}, {"arrows": "to", "from": "Computational_Genome_Bio_File", "to": "HiC_File", "width": 1}, {"arrows": "to", "from": "Computational_Genome_Bio_File", "to": "bigWig_File", "width": 1}, {"arrows": "to", "from": "Computational_Genome_Bio_File", "to": "Bed_File", "width": 1}, {"arrows": "to", "from": "Computational_Genome_Bio_File", "to": "BedPe_File", "width": 1}, {"arrows": "to", "from": "Computational_Genome_Bio_File", "to": "Pairs_File", "width": 1}, {"arrows": "to", "from": "HiC_Feature_File", "to": "HiC_Loops_File", "width": 1}, {"arrows": "to", "from": "HiC_Feature_File", "to": "HiC_TAD_Boundary_Bed_File", "width": 1}, {"arrows": "to", "from": "Parameters", "to": "hicstraw_getMatrixZoomData_Parameters", "width": 1}, {"arrows": "to", "from": "bigWig_File", "to": "ChIP_seq_bigWig_File", "width": 1}, {"arrows": "to", "from": "Bed_File", "to": "Peak_File", "width": 1}, {"arrows": "to", "from": "Bed_File", "to": "bigWigAverage_Over_Bed_File", "width": 1}, {"arrows": "to", "from": "Bed_File", "to": "PeakCount_Over_Bed_File", "width": 1}, {"arrows": "to", "from": "Bed_File", "to": "ChIP_seq_PeakCount_Over_Bed_File", "width": 1}, {"arrows": "to", "from": "Bed_File", "to": "HiC_TAD_Boundary_Bed_File", "width": 1}, {"arrows": "to", "from": "BedPe_File", "to": "HiC_Loops_File", "width": 1}, {"arrows": "to", "from": "Peak_File", "to": "ATAC_seq_Peak_File", "width": 1}, {"arrows": "to", "from": "bigWigAverage_Over_Bed_File", "to": "ChIP_seq_bigWigAverage_Over_Bed_File", "width": 1}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {
+    "configure": {
+        "enabled": false
+    },
+    "edges": {
+        "color": {
+            "inherit": true
+        },
+        "smooth": {
+            "enabled": true,
+            "type": "dynamic"
+        }
+    },
+    "interaction": {
+        "dragNodes": true,
+        "hideEdgesOnDrag": false,
+        "hideNodesOnDrag": false
+    },
+    "physics": {
+        "enabled": true,
+        "stabilization": {
+            "enabled": true,
+            "fit": true,
+            "iterations": 1000,
+            "onlyDynamicEdges": false,
+            "updateInterval": 50
+        }
+    }
+};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>

@@ -1,4 +1,4 @@
-from informant_class import Informant, Directory_Informant, File_Informant
+from informant_class import Informant, Directory_Informant, File_Informant, convert_to_informant_class
 # from graphviz import Digraph
 
 # This is an example script defining an Informant ontology to be used in a computational biology context.
@@ -25,6 +25,17 @@ class Algorithm(Informant):
         super().__init__(**kwargs)
         self.parameter_descriptions = kwargs.get('parameter_descriptions', None)
         self.script_path = kwargs.get('script_path', None)
+
+class Model_Directory(Directory_Informant):
+    """
+    Directory of a configured model.
+    """
+    def __init__(self,**kwargs):
+        super().__init__(**kwargs)
+        self.config = kwargs.get('config', None)
+        self.tb_logs = kwargs.get('tb_logs', None)
+        self.weights_tar = kwargs.get('weights_tar', None)
+        self.latents_h5 = kwargs.get('latents_h5', None)
 
 class File_Set_Element(File_Informant):
     def __init__(self,**kwargs):
@@ -73,6 +84,83 @@ class Computational_Bio_Source(Informant):
         self.bio_source = kwargs.get('bio_source', None)
         self.bio_source_name = kwargs.get('bio_source_name', None)
 
+class Table_File(File_Informant):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.sep = kwargs.get('sep', None)  # '\t' or ','
+        # Initialize table_columns with None if not provided
+        self.table_columns = kwargs.get('table_columns', None)
+        self.header = kwargs.get('header', None)
+    
+    def get_df(self, sep=None, header=None, names=None, table_column_sep=',', index_col=None, max_depth=None):
+        self.auto_update_location(max_depth)
+        import pandas as pd
+        
+        if not hasattr(self, 'sep'):
+            self.sep = '\t'
+        # Set sep to instance value if not provided
+        if sep is None:
+            sep = self.sep
+        else:
+            self.sep = sep
+        
+        if header is None:
+            header = self.header
+        
+        # Ensure sep is properly set (interpret '\t' as tab)
+        if sep == '\\t':  # If sep is the string '\\t', replace with actual tab character
+            sep = '\t'
+        
+        # Ensure table_columns is initialized, even for older objects
+        if not hasattr(self, 'table_columns'):
+            self.table_columns = None
+        
+        # If names is not None, update table_columns
+        if names is not None:
+            self.table_columns = ','.join(names)
+        # If table_columns is set but names is None, use table_columns
+        elif self.table_columns is not None:
+            names = [col.strip("'") for col in self.table_columns.split(table_column_sep)]
+        
+        # If both table_columns and names are None, use default numeric columns
+        return pd.read_csv(self.location, sep=sep, header=header, index_col=index_col, names=names if names is not None else None, engine='python')
+    
+    def split_table(self, output_dir, chunk_size, prefix='chunk_', file_extension='.tsv'):
+        """
+        Splits the table into multiple files with a specified chunk size.
+
+        Args:
+            output_dir (str): Directory to save the split files.
+            chunk_size (int): Number of rows per chunk.
+            prefix (str): Prefix for the output file names.
+            file_extension (str): File extension for the output files (e.g., '.csv', '.tsv').
+        """
+        import os
+        import pandas as pd
+
+        sep = self.sep
+        # Ensure sep is properly set (interpret '\t' as tab)
+        if sep == '\\t':  # If sep is the string '\\t', replace with actual tab character
+            sep = '\t'
+
+        # Ensure output directory exists
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Read the table in chunks
+        chunk_iter = pd.read_csv(self.location, sep=self.sep, chunksize=chunk_size, header=None, engine='python')
+        chunk_files = []
+
+        for i, chunk in enumerate(chunk_iter):
+            chunk_file_path = os.path.join(output_dir, f"{prefix}{i + 1}{file_extension}")
+            chunk.to_csv(chunk_file_path, index=False, sep=sep, header=False)
+            chunk_files.append(chunk_file_path)
+        
+        chunk_file_informants_list = []
+        for chunk_file in chunk_files:
+            chunk_file_informant = convert_to_informant_class(self, type(self), push=True, suppress=True, location=chunk_file, algorithmic_parameters={'informant': self, 'output_dir':output_dir, 'chunk_size':chunk_size, 'prefix':prefix, 'file_extension':file_extension}, algorithm=Algorithm(name='Table_File.split_table'))
+            chunk_file_informants_list.append(chunk_file_informant)
+        return chunk_file_informants_list
+        
 class Company(Institution):
     def __init__(self,**kwargs):
         super().__init__(**kwargs)

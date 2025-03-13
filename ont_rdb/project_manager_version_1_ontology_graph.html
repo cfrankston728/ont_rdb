@@ -1,0 +1,155 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 750px;
+                 background-color: #ffffff;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "red", "id": "Informant", "label": "Informant", "shape": "dot", "size": 30, "title": "Informant (Children: 10)"}, {"color": "blue", "id": "Directory_Informant", "label": "Directory_Informant", "shape": "dot", "size": 12, "title": "Directory_Informant (Children: 4)"}, {"color": "blue", "id": "Informant_Dataframe", "label": "Informant_Dataframe", "shape": "dot", "size": 0, "title": "Informant_Dataframe (Children: 0)"}, {"color": "blue", "id": "DataBase", "label": "DataBase", "shape": "dot", "size": 0, "title": "DataBase (Children: 0)"}, {"color": "blue", "id": "Algorithm", "label": "Algorithm", "shape": "dot", "size": 0, "title": "Algorithm (Children: 0)"}, {"color": "blue", "id": "Parameters", "label": "Parameters", "shape": "dot", "size": 0, "title": "Parameters (Children: 0)"}, {"color": "blue", "id": "Institution", "label": "Institution", "shape": "dot", "size": 6, "title": "Institution (Children: 2)"}, {"color": "blue", "id": "Article", "label": "Article", "shape": "dot", "size": 0, "title": "Article (Children: 0)"}, {"color": "blue", "id": "Website", "label": "Website", "shape": "dot", "size": 3, "title": "Website (Children: 1)"}, {"color": "blue", "id": "Laboratory", "label": "Laboratory", "shape": "dot", "size": 0, "title": "Laboratory (Children: 0)"}, {"color": "blue", "id": "Project", "label": "Project", "shape": "dot", "size": 3, "title": "Project (Children: 1)"}, {"color": "blue", "id": "File_Informant", "label": "File_Informant", "shape": "dot", "size": 12, "title": "File_Informant (Children: 4)"}, {"color": "blue", "id": "File_Set", "label": "File_Set", "shape": "dot", "size": 0, "title": "File_Set (Children: 0)"}, {"color": "blue", "id": "Project_Build", "label": "Project_Build", "shape": "dot", "size": 0, "title": "Project_Build (Children: 0)"}, {"color": "blue", "id": "Log", "label": "Log", "shape": "dot", "size": 3, "title": "Log (Children: 1)"}, {"color": "blue", "id": "Ontology_Script", "label": "Ontology_Script", "shape": "dot", "size": 0, "title": "Ontology_Script (Children: 0)"}, {"color": "blue", "id": "Algorithm_Script", "label": "Algorithm_Script", "shape": "dot", "size": 0, "title": "Algorithm_Script (Children: 0)"}, {"color": "blue", "id": "Log_Entry", "label": "Log_Entry", "shape": "dot", "size": 3, "title": "Log_Entry (Children: 1)"}, {"color": "blue", "id": "Compiled_Log", "label": "Compiled_Log", "shape": "dot", "size": 0, "title": "Compiled_Log (Children: 0)"}, {"color": "blue", "id": "Company", "label": "Company", "shape": "dot", "size": 0, "title": "Company (Children: 0)"}, {"color": "blue", "id": "University", "label": "University", "shape": "dot", "size": 0, "title": "University (Children: 0)"}, {"color": "blue", "id": "Github_Repository", "label": "Github_Repository", "shape": "dot", "size": 0, "title": "Github_Repository (Children: 0)"}, {"color": "blue", "id": "Project_Log", "label": "Project_Log", "shape": "dot", "size": 3, "title": "Project_Log (Children: 1)"}, {"color": "blue", "id": "Project_Log_Entry", "label": "Project_Log_Entry", "shape": "dot", "size": 3, "title": "Project_Log_Entry (Children: 1)"}, {"color": "blue", "id": "Project_Build_Log_Entry", "label": "Project_Build_Log_Entry", "shape": "dot", "size": 0, "title": "Project_Build_Log_Entry (Children: 0)"}, {"color": "blue", "id": "Project_Build_Log", "label": "Project_Build_Log", "shape": "dot", "size": 0, "title": "Project_Build_Log (Children: 0)"}]);
+                  edges = new vis.DataSet([{"arrows": "to", "from": "Informant", "to": "Directory_Informant", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Informant_Dataframe", "width": 1}, {"arrows": "to", "from": "Informant", "to": "DataBase", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Algorithm", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Parameters", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Institution", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Article", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Website", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Laboratory", "width": 1}, {"arrows": "to", "from": "Informant", "to": "Project", "width": 1}, {"arrows": "to", "from": "Directory_Informant", "to": "File_Informant", "width": 1}, {"arrows": "to", "from": "Directory_Informant", "to": "File_Set", "width": 1}, {"arrows": "to", "from": "Directory_Informant", "to": "Project_Build", "width": 1}, {"arrows": "to", "from": "Directory_Informant", "to": "Log", "width": 1}, {"arrows": "to", "from": "File_Informant", "to": "Ontology_Script", "width": 1}, {"arrows": "to", "from": "File_Informant", "to": "Algorithm_Script", "width": 1}, {"arrows": "to", "from": "File_Informant", "to": "Log_Entry", "width": 1}, {"arrows": "to", "from": "File_Informant", "to": "Compiled_Log", "width": 1}, {"arrows": "to", "from": "Institution", "to": "Company", "width": 1}, {"arrows": "to", "from": "Institution", "to": "University", "width": 1}, {"arrows": "to", "from": "Website", "to": "Github_Repository", "width": 1}, {"arrows": "to", "from": "Project", "to": "Project_Build", "width": 1}, {"arrows": "to", "from": "Log", "to": "Project_Log", "width": 1}, {"arrows": "to", "from": "Log_Entry", "to": "Project_Log_Entry", "width": 1}, {"arrows": "to", "from": "Project_Log_Entry", "to": "Project_Build_Log_Entry", "width": 1}, {"arrows": "to", "from": "Project_Log", "to": "Project_Build_Log", "width": 1}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {
+    "configure": {
+        "enabled": false
+    },
+    "edges": {
+        "color": {
+            "inherit": true
+        },
+        "smooth": {
+            "enabled": true,
+            "type": "dynamic"
+        }
+    },
+    "interaction": {
+        "dragNodes": true,
+        "hideEdgesOnDrag": false,
+        "hideNodesOnDrag": false
+    },
+    "physics": {
+        "enabled": true,
+        "stabilization": {
+            "enabled": true,
+            "fit": true,
+            "iterations": 1000,
+            "onlyDynamicEdges": false,
+            "updateInterval": 50
+        }
+    }
+};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>
