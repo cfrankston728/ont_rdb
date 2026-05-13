@@ -1,112 +1,316 @@
 # ont_rdb
-``ont_rdb`` is a package for creating relational databases with an ontological framework.
+
+`ont_rdb` is a Python package for representing project data objects through ontology-linked informants and dataframe-backed relational structures.
+
+It is intended for research projects where many scripts, files, intermediate outputs, metadata records, and analysis objects need to remain interpretable and queryable across time.
 
 <figure>
-    <img src="ont_rdb/data/ont_rdb_concept1.png" alt="" title="ont_rdb-concept" width="450"/>
+    <img src="ont_rdb/data/ont_rdb_concept1.png" alt="ont_rdb concept diagram" title="ont_rdb concept" width="450"/>
 </figure>
 
-## Introduction
-An ontology is a formal representation of knowledge within a domain that can enhance comprehension and management of that domain's various objects. ``ont_rdb`` supports building, modifying, and sharing arbitrary ontologies by writing "ontology scripts," which are Python scripts satisfying the following properties:
+## Overview
 
-1. The script name is of the form ``{X}_ontology.py``.
-2. The script imports the ``informant_class.py`` module, which defines the **informant** class.
-3. The script defines classes that ultimately inherit from classes defined in ``informant_class.py``.
+`ont_rdb` uses Python classes to define project-specific ontologies. An ontology script defines a directed acyclic inheritance graph rooted in the base `Informant` class. Instances of these classes can then be stored, queried, transformed, and exported through informant dataframes.
 
-The ontology defined by such a script encodes an acyclic, directed graph, with the informant class as the unique source node. The informant class is designed to represent a generic schema, such as is used in SQL, as a Python object. 
+The package has two central ideas:
+
+1. An **ontology script** defines the available object types in a project.
+2. An **informant dataframe** stores instances of those object types in a queryable dataframe structure.
+
+This makes project state easier to inspect than loose paths, ad hoc dictionaries, or undocumented output folders.
+
+## Ontology scripts
+
+An ontology script is a Python file that defines informant subclasses for a domain.
+
+A typical ontology script satisfies the following conventions:
+
+1. The script name is of the form `{name}_ontology.py`.
+2. The script imports classes from `informant_class.py`.
+3. The script defines classes that inherit, directly or indirectly, from `Informant`.
+
+For example:
+
+```python
+from informant_class import File_Informant
+
+class HiC_File(File_Informant):
+    pass
+```
+
+The resulting ontology can be converted into an ontology dataframe. This dataframe records class names, class objects, parent-child relationships, source depth, sink depth, and terminal-node status.
+
 <figure>
-    <img src="ont_rdb/data/ont_rdb_flow_diagram1.png" alt="Dependencies flow from the informant class script---ontology scripts and scripts that define specific instances of informants will depend on the informant class script. Once ontologies and informant objects within the context of that ontology are defined, they can be exported to related projects in the form of dataframes. Ontologies can be represented by a dataframe representing its associated directed, acyclic graph, while collections of informant objects can be stored in an informant dataframe, which is also defined in the informant class." title="ont_rdb-flow-diagram" width="450"/>
+    <img src="ont_rdb/data/ont_rdb_flow_diagram1.png" alt="ont_rdb workflow diagram" title="ont_rdb flow diagram" width="450"/>
 </figure>
 
-``ont_rdb`` is envisioned as operating in tandem with Snakemake and possibly a larger database structure like SQL.
+## Informants
 
-## Motivation
+An informant is a Python object that represents a project-relevant entity, such as:
 
-The fusion of a relational databases and ontologies aims to **keep large data analysis projects organized**, especially when multiple steps produce, process and combine new files of various different types. This structure facilitates the tracking and organization of data through "informants," Python objects that encapsulate data and relevant processing methods, simplifying data management.
+```text
+file
+directory
+dataset
+algorithm
+parameter set
+project
+genome assembly
+cell line
+analysis output
+```
 
-Informants may compartmentalize methods relevant to data processing operations, and can be used to "expose" or "express" only relevant information from external scripts. Inspired by immunology, informants serve as interpretable interfaces between data and users or processes, improving data handling efficiency.
+Informants can store metadata, paths, methods, and relationships to other informants. The goal is to make project objects inspectable and queryable without scattering metadata across disconnected scripts.
+
+The name is inspired by immunology: informants expose selected information about a larger underlying object, similar to how antigen presentation exposes interpretable fragments of cellular state.
+
 <figure>
-    <img src="ont_rdb/data/MHC1_function.png" alt="Almost all nucleated cells naturally present cytosolic self-peptides bound to the protein major histocompatability complex one (MHC1). Antigens bound to MHC I can be recognized by mature CD8+ T Cells." title="MHC1-function-analogy" width="300"/>
-    <figcaption>https://microbenotes.com/mhc-antigen-processing-presentation/#major-histocompatibility-class-ii-mhc-class-ii
-    </figcaption>
+    <img src="ont_rdb/data/MHC1_function.png" alt="MHC I antigen presentation analogy" title="MHC I analogy" width="300"/>
+    <figcaption>https://microbenotes.com/mhc-antigen-processing-presentation/#major-histocompatibility-class-ii-mhc-class-ii</figcaption>
 </figure>
 
-## Features
+## Ontology dataframes
 
-Within the ``ont_rdb`` package directory, the ``ontologies`` folder stores an example ontology script written for projects that process Hi-C data. Other scripts can be written and loaded into the folder. When scripting an ontology, it is recommended to introduce new fields/attributes/methods of informant sub-classes along with **meta-data** that describes those new fields/attributes/methods in an interpretable way, especially when the fields themselves are not easily understood at face value without additional context.
+An ontology dataframe can be built directly from an ontology script.
 
-``ont_rdb`` constructs a dataframe representing an ontology's directed, rooted, acyclic graph (DRAG), and facilitates constructing generic examples from the ontology by populating terminal nodes in the graph (specific objects) and applying forgetful functors to map those specific objects onto corresponding examples of the more general objects they inherit from. The function ``convert_to_informant_class`` serves as this forgetful functor, with parameters that can adjust the manner in which one class is projected into another (ex: ``clip``, ``push``).
+From the package directory:
 
-<img src="ont_rdb/data/ont_rdb_graph_vis.png" alt="Alt text" title="example-digraph" width="400"/>
+```bash
+python create_ontology_dataframe.py \
+  --inf informant_class.py \
+  --ont ontologies/hic_January_24_2024_ontology.py \
+  --o ontology_dataframes/hic_January_24_2024_ontology_dataframe.pkl
+```
 
-The ``ont_rdb_explorer.ipynb`` script can be used to interact with the ontology defined by any chosen script in the ``ontologies`` folder. The script may be selected from a drop-down menu and imported. An **ontology dataframe** representing the associated directed graph can be constructed by following the simple directions in the Jupyter notebook.
+The output is a pickle file containing a dataframe representation of the ontology graph.
 
-Informant dataframes leverage existing pandas query operations and the Informant class to simulate a queryable relational database based on the attributes of stored informant objects using the ``filter`` method, which operates on a query string that can refer to attributes of arbitrary informants, or the informants themselves, through the escape symbol ``@``. For example, the query string
+The dataframe includes columns such as:
 
-``"(@name == 'my_informant') | (isinstance(@self, File_Informant))"``
+```text
+informant_subclass_name
+informant_subclass
+direct_parent_indices
+direct_child_indices
+is_sink
+source_depth
+sink_depth
+to_nearest_sink
+```
 
-when given the ``additional_context`` of ``isinstance`` will refer to informants in the data frame that either have the name attribute of ``my_informant``, or are of the ``File_Informant`` class.
+Because the dataframe stores Python class objects, loading the pickle requires the package directory and ontology directory to be importable. For example:
 
-To construct informant dataframes, one may use the auxiliary functions in ``informant_class.py`` to leverage existing directory structures to define and store informant objects associated to files within that directory structure. In particular, the function ``create_file_informant_list_from_folder`` facilitates this operation.
+```python
+import sys
+import pandas as pd
+
+sys.path.insert(0, "/path/to/ont_rdb/ont_rdb")
+sys.path.insert(0, "/path/to/ont_rdb/ont_rdb/ontologies")
+
+df = pd.read_pickle("ontology_dataframes/hic_January_24_2024_ontology_dataframe.pkl")
+```
+
+## Informant dataframes
+
+Informant dataframes store informant objects and expose dataframe-style query operations over their attributes.
+
+For example, a query may refer to informant attributes or to the informant object itself using `@`:
+
+```python
+"(@name == 'my_informant') | (isinstance(@self, File_Informant))"
+```
+
+With `isinstance` supplied as additional context, this query returns informants whose `name` is `my_informant` or whose object is an instance of `File_Informant`.
+
+Informant dataframes are useful for:
+
+```text
+tracking generated files
+recovering project metadata
+querying outputs by object type
+moving or renaming path-linked project objects
+recording algorithm outputs
+connecting project logs to stored artifacts
+```
+
+## Directory-derived informants
+
+The package includes helpers for constructing informants from existing directory structures.
+
+In particular, `create_file_informant_list_from_folder` can be used to traverse a folder and generate informants for files found within it.
+
+This is useful when a project already has meaningful filesystem organization and that structure needs to be represented in dataframe form.
+
+## Explorer notebook
+
+`ont_rdb_explorer.ipynb` provides an interactive way to inspect ontology scripts, build ontology dataframes, and explore informant dataframe behavior.
+
+The notebook should call `create_ontology_dataframe.py` directly. Snakemake is not required for ontology dataframe construction.
 
 ## Installation
-Simply run
 
-``pip install git+https://github.com/cfrankston728/ont_rdb.git``
+Install from GitHub:
 
-or clone the repository from github.
+```bash
+pip install git+https://github.com/cfrankston728/ont_rdb.git
+```
+
+Or clone the repository:
+
+```bash
+git clone git@github.com:cfrankston728/ont_rdb.git
+cd ont_rdb
+```
+
+For editable development:
+
+```bash
+pip install -e .
+```
 
 ## Requirements
 
-The dependencies of ``ont_rdb`` can be found listed within the following file:
+The core package uses standard Python scientific/data tooling, including:
 
-``./ont_rdb/ont_rdb/workflow/snakemake_rules/envs/environment.yaml``
+```text
+python
+pandas
+click
+```
 
-## Configuration
+Additional project-specific workflows may require other libraries depending on the ontology scripts and informant subclasses being used.
 
-Using ``ont_rdb`` requires snakemake and the specification of a snakemake profile. Using ``mamba`` as the ``conda-frontend`` is recommended.
+Snakemake is not required for core ontology dataframe construction.
+
+## Repository organization
+
+Typical source layout:
+
+```text
+ont_rdb/
+  informant_class.py
+  create_ontology_dataframe.py
+  create_informant_dataframe.py
+  explorer_auxiliaries.py
+  launch_project_3.0.py
+  ont_rdb_explorer.ipynb
+  configs/
+  ontologies/
+  data/
+  ontology_dataframes/
+```
+
+Important source files:
+
+```text
+informant_class.py
+  Defines the base informant classes and dataframe utilities.
+
+create_ontology_dataframe.py
+  Builds ontology dataframes directly from ontology scripts.
+
+explorer_auxiliaries.py
+  Provides helper functions used by explorer notebooks and project workflows.
+
+launch_project_3.0.py
+  Supports project initialization and explorer setup.
+
+ontologies/
+  Stores ontology scripts.
+
+ontology_dataframes/
+  Stores generated ontology dataframe pickles.
+```
+
+Generated/runtime artifacts should generally not be committed:
+
+```text
+.snakemake/
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+*.swp
+ontology_dataframes/*.pkl
+```
+
+## Snakemake status
+
+Earlier versions used Snakemake to wrap ontology dataframe construction. That layer is no longer required for the core package.
+
+The direct command:
+
+```bash
+python create_ontology_dataframe.py \
+  --inf informant_class.py \
+  --ont ontologies/{name}_ontology.py \
+  --o ontology_dataframes/{name}_ontology_dataframe.pkl
+```
+
+replaces the previous Snakemake target construction path.
+
+Historical Snakemake workflow files may be archived, but they should not be treated as active package infrastructure unless a future multi-step workflow requires them.
+
+## Development notes
+
+Keep functional source changes separate from generated artifact changes.
+
+Recommended commit separation:
+
+```text
+1. package behavior changes
+2. notebook or explorer changes
+3. repository hygiene changes
+4. generated artifact updates, only if intentionally versioned
+```
+
+Avoid committing notebook checkpoints, runtime caches, generated graph HTML, generated pickle files, or ad hoc backup scripts.
 
 ## Contributing
 
-Thank you for your interest in contributing to our project! As this is a private repository, we assume you're already familiar with its goals and have been invited to contribute. Here are some guidelines to help you get started:
+This is primarily a research infrastructure package. Contributions should preserve interpretability, explicit metadata, and compatibility with existing ontology scripts when possible.
 
-### Reporting Issues
+When making changes:
 
-- **Bug Reports:** If you encounter a bug, please file an issue using our bug report template. Include as much detail as possible: what you were doing when the bug occurred, steps to reproduce the issue, expected vs. actual behavior, and any error messages.
-- **Feature Requests:** We welcome ideas for new features. Please submit a feature request issue, describing the feature and why you think it would be a valuable addition.
+```text
+use explicit paths and metadata
+avoid hidden workflow state
+avoid unnecessary external orchestration
+keep generated artifacts out of source commits unless deliberately versioned
+document interface changes
+test ontology dataframe construction on at least one existing ontology script
+```
 
-### Making Contributions
+Before committing changes to ontology construction, test:
 
-- **Pull Requests:** Before starting work on a significant change, please open an issue to discuss your ideas. This will allow us to give you feedback and help ensure that your time is well spent.
-  - Fork the repository (if external access is granted).
-  - Create a new branch for your changes.
-  - Make your changes and commit them with clear, concise commit messages.
-  - Push your branch and submit a pull request to the main branch.
-  - Include a description of your changes and the issue number(s) your pull request addresses.
-- **Code Review:** All contributions will be reviewed for quality and compatibility with the project goals. We aim to review pull requests promptly, but response times may vary based on current priorities.
+```bash
+python create_ontology_dataframe.py \
+  --inf informant_class.py \
+  --ont ontologies/hic_January_24_2024_ontology.py \
+  --o /tmp/hic_January_24_2024_ontology_dataframe.pkl
+```
 
-### Coding Standards
+Then verify loading:
 
-- Please follow the coding standards and style guidelines for the project. This ensures consistency and maintainability of the codebase.
-- Include comments in your code where necessary to explain complex or non-obvious logic.
+```python
+import sys
+import pandas as pd
 
-### Legal
+sys.path.insert(0, "/path/to/ont_rdb/ont_rdb")
+sys.path.insert(0, "/path/to/ont_rdb/ont_rdb/ontologies")
 
-- By contributing to this project, you agree that your contributions will be licensed under its MIT License.
-- Ensure that you have the right to use and contribute any code or content you submit.
-
-For more information, feel free to contact the project maintainers.
-
+df = pd.read_pickle("/tmp/hic_January_24_2024_ontology_dataframe.pkl")
+print(df.shape)
+```
 
 ## License
 
-cfrankston728/ont_rdb is licensed under the
-
-### MIT License
-
-A short and simple permissive license with conditions only requiring preservation of copyright and license notices. Licensed works, modifications, and larger works may be distributed under different terms and without source code.
+`ont_rdb` is licensed under the MIT License.
 
 ## Authors
-Connor Frankston, Yardımcı Lab, OHSU
+
+Connor Frankston, Yardimci Lab, OHSU
 
 ## Acknowledgments
-I would like to offer a special thanks to Theresa Lusardi, Kenny Pavan, Ben Skubi, and Sam Kupp for their encouragement, support, and engagement with my vision for this project. I would also like to thank Gürkan Yardımcı, Sadik Esener, Matthew Rames, Tuğba and Furkan Özmen, Jungsun Kim, Juyoung Lee, Christopher Eddy, and Yujia Zhang for their knowledge, direction and mentorship.
+
+Special thanks to Theresa Lusardi, Kenny Pavan, Ben Skubi, and Sam Kupp for encouragement, support, and engagement with the vision for this project.
+
+Thanks also to Gurkan Yardimci, Sadik Esener, Matthew Rames, Tugba and Furkan Ozmen, Jungsun Kim, Juyoung Lee, Christopher Eddy, and Yujia Zhang for knowledge, direction, and mentorship.

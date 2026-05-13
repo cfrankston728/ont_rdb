@@ -1,5 +1,30 @@
+# Logs
 *.log
 logs/
-.snakemake/
-__pycache__
 interactive_log/
+
+# Snakemake runtime/cache
+.snakemake/
+
+# Python runtime/cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter runtime/cache
+.ipynb_checkpoints/
+
+# Editor swap/temp files
+*.swp
+*.swo
+*~
+
+# Generated/local artifacts
+*.html
+* copy.py
+*_working_version_*.py
+
+ont_rdb/ontology_dataframes/*.pkl
+archive/
+# Local metadata scratch
+ont_rdb/metadata.txt
