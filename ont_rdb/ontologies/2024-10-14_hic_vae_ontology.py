@@ -461,6 +461,10 @@ class ChIP_seq_bigWigAverage_Over_Bed_File(bigWigAverage_Over_Bed_File):
         self.bigWig_type = 'ChIP_seq'
         self.target = kwargs.get('target', None)
 
+class DataGraph_Informant(Directory_Informant):
+     def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
 """ class Absurd_Informant(HiC_File, Research_Paper, Institution):
     def __init__(self, **kwargs):
         super().__init__(**kwargs) """

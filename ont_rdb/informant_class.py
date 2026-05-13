@@ -372,14 +372,16 @@ class Directory_Informant(Informant):
         super().__init__(**kwargs)
         self.location = kwargs.get('location', None)
         self.external_locations = kwargs.get('external_locations', None)
-    def file_list(self):
+    def file_list(self, file_type=None):
         folder_path = self.location
         if os.path.isdir(folder_path):
             with os.scandir(folder_path) as entries:
-                files = [entry.name for entry in entries if entry.is_file()]
+                files = [entry.name for entry in entries 
+                         if entry.is_file() and (file_type is None or entry.name.endswith(file_type))]
         else:
             files = 'Invalid folder path'
         return files
+
     def file_count(self):
         this_file_list = self.file_list()
         if this_file_list == 'Invalid folder path':
@@ -492,7 +494,49 @@ class File_Informant(Directory_Informant):
                 print(f"No files found matching {self.file_type}.")
 
     
-        
+import os, shutil, re, json, time
+from typing import Iterable, Dict, Tuple, Optional
+
+def _safe_move(src: str, dst: str):
+    # Create parent
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    # If destination exists, append a timestamp suffix to avoid clobbering
+    if os.path.exists(dst):
+        base = dst.rstrip("/").rstrip()
+        dst = f"{base}__RENAMED_{time.strftime('%Y%m%d-%H%M%S')}"
+    shutil.move(src, dst)
+    return dst
+
+def rename_location_generic(current_location: str, new_location: str) -> str:
+    """
+    Move file or directory at current_location to new_location.
+    Returns the final new path (may include timestamp suffix if collision).
+    """
+    if not os.path.exists(current_location):
+        raise FileNotFoundError(f"Path does not exist: {current_location}")
+
+    # If moving a directory to a directory path:
+    if os.path.isdir(current_location):
+        # If the target is intended as a directory, ensure its parent exists.
+        os.makedirs(os.path.dirname(new_location), exist_ok=True)
+        return _safe_move(current_location, new_location)
+    else:
+        # Moving a single file—ensure parent dir exists, and move
+        return _safe_move(current_location, new_location)
+
+# Add to Directory_Informant:
+def dir_rename_location(self, new_location: str):
+    final = rename_location_generic(self.location, new_location)
+    self.location = final
+
+Directory_Informant.rename_location = dir_rename_location
+
+# File_Informant can delegate to the same:
+def file_rename_location(self, new_location: str):
+    final = rename_location_generic(self.location, new_location)
+    self.location = final
+
+File_Informant.rename_location = file_rename_location
 
 ###################################################################################
 # Functions for constructing Basic Informants from pre-existing directory structures:
@@ -562,6 +606,76 @@ def get_folder_path_sequences_outdated_1(root_folder)->list:
     return folder_sequences
 
 def create_file_informant_list_from_folder(root_folder,
+                                           explicit=True,
+                                           suppress=True,
+                                           use_location=False,
+                                           attribute_sequence=[], 
+                                           informant_class=None, 
+                                           reverse_attribute_sequence=False,
+                                           resolve_symlinks=False,
+                                           **kwargs) -> list:
+    """
+    Extracts file informants from a folder.
+
+    Args:
+        root_folder (str): Root folder path.
+        explicit (bool): Whether to use explicit informant initialization.
+        suppress (bool): Whether to suppress informant output.
+        use_location (bool): Whether the file location is stored in the informant attributes.
+        attribute_sequence (list): Designates how to assign folder names as attributes.
+        informant_class: Subclass of Informant to be used.
+        reverse_attribute_sequence (bool): If True, assign attributes from the leaf folder upward.
+        resolve_symlinks (bool): If True, store symlink target paths as locations rather than symlink paths.
+        **kwargs: Additional keyword arguments.
+
+    Returns:
+        list: List of file informants.
+    """
+
+    class_example = informant_class(explicit=explicit, suppress=suppress)
+
+    folder_sequences = get_folder_path_sequences(root_folder)
+
+    def create_informant(file_folder_sequence):
+        arguments_dictionary = class_example.__dict__.copy()
+
+        if explicit:
+            arguments_dictionary.update(**kwargs)
+
+        if use_location:
+            location = os.path.join(root_folder, *file_folder_sequence)
+
+            if resolve_symlinks:
+                location = os.path.realpath(location)
+
+            arguments_dictionary.update({"location": location})
+
+        if len(attribute_sequence) > 0:
+            if reverse_attribute_sequence:
+                file_folder_sequence = list(reversed(file_folder_sequence))
+
+            seq_length = min(len(attribute_sequence), len(file_folder_sequence))
+            attributes = dict(zip(attribute_sequence[:seq_length], file_folder_sequence[:seq_length]))
+            arguments_dictionary.update(attributes)
+
+        arguments_dictionary.update({
+            key: kwargs.get(key, arguments_dictionary.get(key))
+            for key in arguments_dictionary
+        })
+
+        return informant_class(
+            explicit=explicit,
+            suppress=suppress,
+            informants=kwargs.get("informants", []),
+            **arguments_dictionary
+        )
+
+    with ThreadPoolExecutor() as executor:
+        informant_list = list(executor.map(create_informant, folder_sequences))
+
+    return informant_list
+    
+def create_file_informant_list_from_folder_v1(root_folder,
                                            explicit=True,
                                            suppress=True,
                                            use_location=False, 

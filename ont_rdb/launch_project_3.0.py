@@ -65,6 +65,7 @@ def create_explorer_notebook(project_dir, project_name):
     
     cell_lines = [
     "from explorer_auxiliaries import *",
+    "from datetime import datetime",
     "",
     "# Register project directory",
     "this_project_directory = os.path.dirname(os.getcwd())",
@@ -120,7 +121,7 @@ def create_explorer_notebook(project_dir, project_name):
                 "source": [
                     "\n",
                     "# Get the current date\n",
-                    "current_date = datetime.date.today()\n",
+                    "current_date = datetime.today()\n",
                     "\n",
                     "# Extract year, month, and day\n",
                     "year = current_date.year\n",

@@ -154,8 +154,9 @@ class Table_File(File_Informant):
         # Initialize table_columns with None if not provided
         self.table_columns = kwargs.get('table_columns', None)
         self.header = kwargs.get('header', None)
+        self.comment = kwargs.get('comment', "#")
     
-    def get_df(self, sep=None, header=None, names=None, table_column_sep=',', index_col=None, max_depth=None):
+    def get_df(self, sep=None, header=None, names=None, table_column_sep=',', index_col=None, max_depth=None, comment=None):
         self.auto_update_location(max_depth)
         import pandas as pd
         
@@ -186,7 +187,7 @@ class Table_File(File_Informant):
             names = [col.strip("'") for col in self.table_columns.split(table_column_sep)]
         
         # If both table_columns and names are None, use default numeric columns
-        return pd.read_csv(self.location, sep=sep, header=header, index_col=index_col, names=names if names is not None else None, engine='python')
+        return pd.read_csv(self.location, sep=sep, comment=self.comment, header=header, index_col=index_col, names=names if names is not None else None, engine='python')
     
     def split_table(self, output_dir, chunk_size, prefix='chunk_', file_extension='.tsv'):
         """
@@ -368,19 +369,19 @@ class bigWig_File(Computational_Genome_Bio_File):
         self.bigWig_type = kwargs.get('bigWig_type', None)
         self.bigWig_signal = kwargs.get('bigWig_signal', None)
         
-class Bed_File(Computational_Genome_Bio_File):
+class Bed_File(Computational_Genome_Bio_File, Table_File):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.file_type = '.bed'
         self.gz = kwargs.get('gz', None)
 
-class BedPe_File(Computational_Genome_Bio_File):
+class BedPe_File(Computational_Genome_Bio_File, Table_File):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.file_type = '.bedpe'
         self.gz = kwargs.get('gz', None)
 
-class Pairs_File(Computational_Genome_Bio_File):
+class Pairs_File(Computational_Genome_Bio_File, Table_File):
     def __init__(self, **kwargs):
         suppress = kwargs.get('suppress',False)
         super().__init__(**kwargs)

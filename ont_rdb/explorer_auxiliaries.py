@@ -24,6 +24,50 @@ from pyvis.network import Network
 # 📂 Project-Specific Imports
 from informant_class import *
 
+import re
+import math
+import textwrap
+import base64
+import math
+
+def format_node_label(task_id, name):
+    """
+    Format the node label by including the task_id and wrapping the task name.
+    Inserts zero-width spaces after dashes, slashes, and underscores to allow optional breaks.
+    """
+    if not name:
+        return task_id  # fallback if no name provided
+
+    # Use a lambda function to insert a zero-width space (U+200B) after special characters.
+    new_name = re.sub(r'([/_-])', lambda m: m.group(1) + '\u200b', name)
+
+    # Determine a wrap width as the square root of the length (at least a minimum width)
+    wrap_width = max(15, int(2*math.sqrt(len(new_name))))
+
+    # Wrap the text using textwrap; the zero-width spaces allow breaks without forcing them.
+    wrapped_name = textwrap.fill(new_name, width=wrap_width, break_long_words=False)
+
+    # Prepend the task_id with a newline.
+    label = f"{task_id}\n{wrapped_name}"
+    return label
+
+def create_clock_svg(node_size, ratio, fill_color="orange"):
+    radius = node_size / 2.0 - 2  # subtract a bit for stroke width
+    circumference = 2 * math.pi * radius
+    dash_length = ratio * circumference
+    svg = f'''
+    <svg width="{node_size}" height="{node_size}" xmlns="http://www.w3.org/2000/svg">
+      <!-- Background circle filled with the node color -->
+      <circle cx="{node_size/2}" cy="{node_size/2}" r="{radius}" fill="{fill_color}" />
+      <!-- Red clock outline showing effective priority -->
+      <circle cx="{node_size/2}" cy="{node_size/2}" r="{radius}"
+              fill="none" stroke="red" stroke-width="4"
+              stroke-dasharray="{dash_length} {circumference}" 
+              transform="rotate(-90 {node_size/2} {node_size/2})" />
+    </svg>
+    '''
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("utf-8")
+
 class TaskManager:
     def __init__(self, project_manager_path, notebook_path=None, trial_id=None, ontology_name=None, project_build=None, discount_rate=0.1):
         """Initialize TaskManager with paths to task storage files and a discount rate for time-sensitive tasks."""
@@ -262,6 +306,8 @@ class TaskManager:
         task_id = str(uuid.uuid4()).replace('-', '')[:id_length]
         while task_id in tasks:
             attempts += 1
+            if attempts % 100 == 0:
+                print(f"Unique ID generation: {attempts} attempts so far.")
             if attempts >= max_attempts:
                 raise Exception("Failed to generate a unique task ID after many attempts. Consider using a longer ID.")
             task_id = str(uuid.uuid4()).replace('-', '')[:id_length]
@@ -311,86 +357,84 @@ class TaskManager:
     import functools
     import networkx as nx
 
-    def show_task_table(self, filter_expr=None, discount_rate=None, suppress_discount_annotation=False, reverse_order=False, scroll_height="400px"):
+    def task_table(self, filter_expr=None, discount_rate=None, suppress_discount_annotation=False, 
+                        reverse_order=False, scroll_height="400px", time_filter="all", display_output=False):
         """
         Display tasks in a searchable/sortable table format inside a scrollable container.
-
-        This version builds a task graph to enforce that a child task appears before its parent,
-        while preserving the overall order defined by:
-        - Time sensitivity (time-sensitive tasks come first)
-        - Discounted priority (for time-sensitive tasks, computed as impact_score * exp(-discount_rate * time_until_due); 
-            for time-insensitive tasks, simply the impact_score)
-
-        Optionally, a discount_rate can be provided; otherwise the task manager's discount_rate is used.
-        If reverse_order is True, the final ordering is reversed.
-        scroll_height: CSS height of the scrollable container (default "400px").
+        
+        Parameters:
+          filter_expr: (optional) a Pandas query string to further filter the DataFrame.
+          discount_rate: (optional) discount rate used for computing effective priority.
+          suppress_discount_annotation: (optional) if True, does not print the discount rate.
+          reverse_order: (optional) if True, reverses the final ordering.
+          scroll_height: (optional) CSS height of the scrollable container.
+          time_filter: (optional) 'all', 'sensitive', or 'insensitive' to show only tasks that are time sensitive or not.
         """
         tasks = self._load_tasks()
+        
+        # Filter tasks by time sensitivity if required.
+        if time_filter not in ("all", "sensitive", "insensitive"):
+            print("Invalid time_filter value. Must be 'all', 'sensitive', or 'insensitive'. Showing all tasks.")
+            time_filter = "all"
+        if time_filter == "sensitive":
+            tasks = {tid: task for tid, task in tasks.items() if task.get("time_sensitive", False)}
+        elif time_filter == "insensitive":
+            tasks = {tid: task for tid, task in tasks.items() if not task.get("time_sensitive", False)}
+        
         if not tasks:
-            print("No active tasks found.")
+            print("No active tasks found after applying the time filter.")
             return
-
+    
         # Determine discount rate to use.
         used_discount_rate = discount_rate if discount_rate is not None else self.discount_rate
-
+    
         # Ensure each task has proper time_sensitive flag and compute discounted_priority.
         for tid, task in tasks.items():
             due = task.get("due_date")
-            # If due_date is defined and not empty or "nan", mark as time sensitive.
             if due not in [None, "", "nan"]:
                 task["time_sensitive"] = True
             else:
                 task["time_sensitive"] = False
-            # Compute discounted priority (for time-insensitive tasks, this returns the impact_score).
             task["discounted_priority"] = self.compute_effective_priority(task, discount_rate=used_discount_rate)
-
+    
         if not suppress_discount_annotation:
             print(f"Discount rate used for computing effective priority: {used_discount_rate}")
-
-        # Build the directed graph with reversed edge direction:
-        # For each task, if it has a parent, add an edge from child to parent.
+    
+        # Build the directed graph with reversed edge direction.
         G = nx.DiGraph()
         for tid in tasks:
             G.add_node(tid)
         for tid, task in tasks.items():
             parent = task.get("parent_task")
             if parent and parent in tasks:
-                # Reversed edge: from child (tid) to parent.
                 G.add_edge(tid, parent)
-
-        # Perform lexicographical topological sort.
-        # The key orders tasks so that time-sensitive tasks come first and, among those,
-        # higher discounted_priority tasks come first.
+    
+        # Lexicographical topological sort based on time sensitivity and discounted priority.
         order = list(nx.lexicographical_topological_sort(
             G,
             key=lambda tid: (not tasks[tid].get("time_sensitive", False), -tasks[tid].get("discounted_priority", 0))
         ))
-
+    
         if reverse_order:
             order = order[::-1]
-
-        # Reorder tasks according to the computed topological order.
+    
         ordered_tasks = [tasks[tid] for tid in order]
-
-        # Convert to DataFrame.
         df_final = pd.DataFrame(ordered_tasks)
-
-        # Apply filter if provided.
+    
+        # Apply additional filter if provided.
         if filter_expr:
             try:
                 df_final = df_final.query(filter_expr)
             except Exception as e:
                 print(f"Invalid filter expression: {filter_expr}")
-
-        # Specify columns to display.
+    
         display_cols = [
             'task_id', 'name', 'description', 'impact_score', 'due_date', 'time_sensitive', 'discounted_priority',
             'status', 'created_at', 'checked_out', 'parent_task', 
             'project_build', 'explorer', 'trial_id', 'ontology'
         ]
         df_final = df_final[display_cols]
-
-        # Wrap the table in a scrollable container.
+    
         styled_df = df_final.style.set_properties(**{
             'text-align': 'left',
             'white-space': 'pre-wrap'
@@ -398,30 +442,29 @@ class TaskManager:
             'selector': 'th',
             'props': [('text-align', 'left')]
         }])
-
+    
         html_table = styled_df.to_html()
         scrollable_html = f"""
         <div style="height: {scroll_height}; overflow-y: auto; border: 1px solid #ccc; padding: 5px;">
             {html_table}
         </div>
         """
-
-        from IPython.display import HTML, display
-        display(HTML(scrollable_html))
+        if display_output:
+            display(HTML(scrollable_html))
         return df_final
 
     def search_tasks(self, query=None):
         """Interactive task search with filtering."""
         if query is None:
             query = input("Enter search filter (e.g., 'impact_score > 5' or 'status == \"active\"'): ")
-        return self.show_task_table(query)
+        return self.task_table(query)
     
-    def checkout_task(self, task_id=None, discount_rate=None):
+    def checkout_task(self, task_id=None, discount_rate=None, display_output=True):
         """Check out a task to work on."""
         if task_id is None:
             print("Available tasks:")
             # Display the table in reverse order for easier selection of high-priority tasks
-            self.show_task_table(reverse_order=False, discount_rate=discount_rate)
+            self.task_table(reverse_order=False, discount_rate=discount_rate, display_output=display_output)
             task_id = input("\nEnter task ID to check out: ").strip()
         
         tasks = self._load_tasks()
@@ -476,7 +519,7 @@ class TaskManager:
         """Move a task to the completed file with 'shelved' status."""
         if task_id is None:
             print("Available tasks:")
-            self.show_task_table()
+            self.task_table()
             task_id = input("\nEnter task ID to shelve: ").strip()
         
         tasks = self._load_tasks()
@@ -506,63 +549,619 @@ class TaskManager:
             print("Task not found!")
             return False
     
-    def get_task_graph(self, include_completed=False):
-        """Generate a networkx graph of tasks and their relationships."""
+    def get_task_graph(self, include_completed=False, unify_under_root=True):
+        # Load active tasks
+        active_tasks = self._load_tasks()
+        # Always load completed tasks for reference—even if not showing them
+        reference_completed = self._load_completed_tasks()
+        
+        # Build the nodes dictionary:
+        if include_completed:
+            nodes = {**active_tasks, **reference_completed}
+        else:
+            nodes = active_tasks.copy()
+        
         G = nx.DiGraph()
         
-        # Add active tasks
-        tasks = self._load_tasks()
-        for task_id, task in tasks.items():
-            G.add_node(task_id, **task)
-            
-            # Add edges for parent-child relationships
-            if task["parent_task"]:
-                G.add_edge(task["parent_task"], task_id)
+        # Define default attributes for nodes.
+        default_attributes = {
+            "name": "Unknown",
+            "impact_score": 0,
+            "status": "undefined",
+            "created_at": "N/A"
+        }
         
-        # Optionally add completed tasks
-        if include_completed:
-            completed_tasks = self._load_completed_tasks()
-            for task_id, task in completed_tasks.items():
-                G.add_node(task_id, **task)
-                if task["parent_task"]:
-                    G.add_edge(task["parent_task"], task_id)
+        # If not unifying under a single root, add a fallback node for missing parents.
+        if not unify_under_root:
+            fallback_node = "NONEXTANT_TASKS"
+            fallback_attrs = default_attributes.copy()
+            fallback_attrs.update({"name": "Nonextant Tasks", "status": "completed", "color": "blue"})
+            G.add_node(fallback_node, **fallback_attrs)
+        
+        # Add all nodes we want to show (from the 'nodes' dictionary).
+        for task_id, task in nodes.items():
+            node_data = {**default_attributes, **task}
+            # Set color based on status.
+            if node_data.get("status") in ["completed", "shelved"]:
+                node_data["color"] = "blue"
+            else:
+                node_data["color"] = "orange"
+            G.add_node(task_id, **node_data)
+        
+        # Helper: traverse the chain from a task to find the closest extant (active or shown) ancestor.
+        def find_extant_ancestor(task, nodes, reference_completed):
+            parent_id = task.get("parent_task")
+            while parent_id is not None:
+                if parent_id in nodes:
+                    return parent_id
+                elif parent_id in reference_completed:
+                    parent_task = reference_completed[parent_id]
+                    parent_id = parent_task.get("parent_task")
+                else:
+                    break
+            return None
+    
+        # For each task, add an edge based on parent-child relationship.
+        for task_id, task in nodes.items():
+            parent_id = task.get("parent_task")
+            if parent_id:
+                if parent_id in nodes:
+                    # Parent exists among nodes, add edge normally.
+                    G.add_edge(parent_id, task_id)
+                else:
+                    # Parent is missing. Try to find a closest extant ancestor.
+                    ancestor = find_extant_ancestor(task, nodes, reference_completed)
+                    if ancestor is not None:
+                        G.add_edge(ancestor, task_id)
+                    else:
+                        # No extant ancestor found: attach to the central root (if unifying)
+                        # or to the fallback node if not unifying.
+                        if unify_under_root:
+                            G.add_edge("TARGET", task_id)
+                        else:
+                            G.add_edge("NONEXTANT_TASKS", task_id)
+        
+        # Optionally unify the graph under a single root node ("TARGET").
+        if unify_under_root:
+            root_node = "TARGET"
+            root_attrs = default_attributes.copy()
+            root_attrs.update({"name": "TARGET", "status": "root", "color": "gray"})
+            G.add_node(root_node, **root_attrs)
+            # Attach orphan nodes (nodes with no incoming edges) to TARGET.
+            orphan_tasks = [node for node in G.nodes if G.in_degree(node) == 0 and node != root_node]
+            for orphan in orphan_tasks:
+                G.add_edge(root_node, orphan)
         
         return G
-    
-    def visualize_tasks(self, output_path=None, include_completed=False):
-        """Create an interactive visualization of the task network."""
+
+    def visualize_tasks(self, output_path=None, include_completed=False, time_filter="all"):
+        """
+        Create an interactive visualization of the task network.
+        
+        Parameters:
+          output_path: (optional) file path to save the network visualization.
+          include_completed: (optional) if True, include completed tasks.
+          time_filter: (optional) 'all', 'sensitive', or 'insensitive' to filter tasks based on time sensitivity.
+                      The central node ("TARGET") is always included.
+        """
         G = self.get_task_graph(include_completed)
+        
+        # If a time_filter is provided (other than "all"), remove nodes that do not match,
+        # but always keep the central node "TARGET".
+        if time_filter in ("sensitive", "insensitive"):
+            nodes_to_remove = [
+                node for node, data in G.nodes(data=True)
+                if node != "TARGET" and data.get("time_sensitive", False) != (time_filter == "sensitive")
+            ]
+            G.remove_nodes_from(nodes_to_remove)
+        
         net = Network(height="750px", width="100%", directed=True)
         
-        # Add nodes with formatting
         for node in G.nodes(data=True):
             node_id = node[0]
             node_data = node[1]
-            
-            # Format node title (hover text)
+            formatted_label = format_node_label(node_id, node_data['name'])
             title = f"""
             Name: {node_data['name']}
             Priority: {node_data['impact_score']}
             Status: {node_data['status']}
             Created: {node_data['created_at']}
             """
+            color = node_data.get("color", "orange")
+            impact = float(node_data.get('impact_score', 0))
+            base_size = 20
+            scaling_factor = 5
+            node_size = base_size + scaling_factor * np.sqrt(impact)
             
-            # Color based on status and priority
-            if node_data['status'] == 'completed':
-                color = '#aaaaaa'
+            if node_data.get("time_sensitive", False):
+                effective_priority = self.compute_effective_priority(node_data)
+                ratio = effective_priority / impact if impact > 0 else 0
+                node_image = create_clock_svg(node_size, ratio, fill_color=color)
+                shape = 'circularImage'
             else:
-                # Color intensity based on priority
-                priority = float(node_data['priority'])
-                color = f'rgb(0, 0, {min(255, max(100, 255 - abs(priority) * 10))})'
+                node_image = None
+                shape = 'dot'
             
-            net.add_node(node_id, title=title, label=node_data['name'], color=color)
+            text_length = np.sqrt(len(node_data['name']))
+            mass_scaling_factor = 1.5
+            node_mass = text_length * mass_scaling_factor
         
-        # Add edges
+            if node_image:
+                net.add_node(node_id,
+                             title=title,
+                             label=formatted_label,
+                             shape=shape,
+                             image=node_image,
+                             size=node_size,
+                             mass=node_mass)
+            else:
+                net.add_node(node_id,
+                             title=title,
+                             label=formatted_label,
+                             shape=shape,
+                             color=color,
+                             size=node_size,
+                             mass=node_mass)
+        
         for edge in G.edges():
             net.add_edge(edge[0], edge[1])
         
+        # OPTIONAL: For each leaf task, add an extra edge to the central node ("TARGET")
+        # with a length proportional to its effective priority.
+        base_length = 5  # Base distance value; adjust as needed.
+        length_scaling = 10  # Scaling factor for effective priority.
+        for node in G.nodes():
+            # Skip the central node.
+            if node == "TARGET":
+                continue
+            # If the node has no outgoing edges, it is a leaf.
+            node_data = G.nodes[node]
+            # Compute effective priority; adjust this call if you wish to use a different measure
+            effective_priority = self.compute_effective_priority(node_data)
+            edge_length = base_length + length_scaling * effective_priority
+            # Adding an extra edge from the leaf to "TARGET"
+            net.add_edge(node, "TARGET", length=edge_length, title=f"Effective Priority: {effective_priority}", hidden=True)
+        
         if output_path:
             net.save(output_path)
+        return net
+    
+    def visualize_tasks_with_tags(self, output_path=None, include_completed=False, time_filter="all", 
+                                tag_edge_length=150, unify_under_root=True, show_tags=False, tag_font_color="#007ACC"):
+        """
+        Create an interactive visualization of the task network augmented with tag nodes.
+        
+        First, the method uses the same logic as visualize_tasks to construct a graph (G) of task nodes.
+        If unify_under_root is True, a central "TARGET" node is added and attached to top‐level tasks (or tasks
+        whose parent cannot be found). Then, a mapping from each tag to the tasks that have that tag is built,
+        and for each tag a tag node is added along with hidden tag edges connecting that tag node to its tasks.
+        
+        Finally, extra (hidden) edges are added from each leaf task (non‐tag, non‐TARGET node with no children)
+        to the TARGET node with a length proportional to its effective priority.
+        
+        Parameters:
+          output_path (str, optional): File path to save the resulting HTML visualization.
+          include_completed (bool, optional): Whether to include completed tasks.
+          time_filter (str, optional): 'all', 'sensitive', or 'insensitive' to filter tasks based on time sensitivity.
+          tag_edge_length (int, optional): Desired length for edges from tag nodes to tasks.
+          unify_under_root (bool, optional): If True, add a central "TARGET" node and attach top‐level task nodes.
+          show_tags (bool, optional): If True, tag nodes are visible with a label and custom font color;
+                                      if False, tag nodes are invisible.
+          tag_font_color (str, optional): Hex code for the tag node font color when tags are visible.
+        
+        Returns:
+          A PyVis Network object.
+        """
+        # (1) Get the task graph using our usual logic (which adds TARGET and extra task edges)
+        G = self.get_task_graph(include_completed, unify_under_root=True)
+        
+        # (2) Filter out nodes based on time sensitivity if requested.
+        if time_filter in ("sensitive", "insensitive"):
+            nodes_to_remove = [
+                node for node, data in G.nodes(data=True)
+                if node != "TARGET" and data.get("time_sensitive", False) != (time_filter == "sensitive")
+            ]
+            G.remove_nodes_from(nodes_to_remove)
+        
+        # (3) Build mapping: for each tag (from the tasks remaining in G), list the task IDs that have that tag.
+        # Note: We ignore any nodes that already are not tasks (e.g. TARGET) – here we assume all nodes in G (except TARGET)
+        # are task nodes.
+        tag_to_tasks = {}
+        for node_id, data in G.nodes(data=True):
+            # Only consider task nodes (not tag nodes). In our get_task_graph, we did not mark tag nodes.
+            if node_id == "TARGET":
+                continue
+            # For each task, look for a "tags" list.
+            for tag in data.get("tags", []):
+                tag_to_tasks.setdefault(tag, []).append(node_id)
+        
+        # (4) Add tag nodes and hidden tag edges.
+        for tag, task_ids in tag_to_tasks.items():
+            tag_node_id = f"tag_{tag}"
+            # Set appearance based on show_tags toggle.
+            if show_tags:
+                node_label = tag
+                node_color = "#ffffff"  # Background color for tag node (you can adjust)
+                font_opts = {"color": tag_font_color}
+            else:
+                node_label = ""
+                node_color = "rgba(0,0,0,0)"
+                font_opts = {"color": "rgba(0,0,0,0)"}
+            # Add the tag node.
+            G.add_node(tag_node_id, name=tag, is_tag=True, color=node_color, size=5, font=font_opts)
+            # Add an edge from the tag node to each task that has the tag.
+            for tid in task_ids:
+                # Use the custom length and mark the edge as a tag edge.
+                G.add_edge(tag_node_id, tid, tag_edge=True, length=tag_edge_length)
+        
+        # (5) Now create the PyVis network.
+        net = Network(height="750px", width="100%", directed=True)
+        
+        # (6) Add nodes to the PyVis network.
+        for node_id, data in G.nodes(data=True):
+            if data.get("is_tag", False):
+                # Tag node.
+                net.add_node(node_id,
+                             label=data.get("name") if show_tags else "",
+                             shape="dot",
+                             color=data.get("color", "rgba(0,0,0,0)"),
+                             size=data.get("size", 5),
+                             font=data.get("font", {}))
+            else:
+                # Task node.
+                formatted_label = format_node_label(node_id, data.get("name", ""))
+                title = f"Name: {data.get('name', '')}\nPriority: {data.get('impact_score', 0)}\nStatus: {data.get('status', '')}\nCreated: {data.get('created_at', '')}"
+                color = data.get("color", "orange")
+                impact = float(data.get("impact_score", 0))
+                base_size = 20
+                scaling_factor = 5
+                node_size = base_size + scaling_factor * math.sqrt(impact)
+                
+                if data.get("time_sensitive", False):
+                    effective_priority = self.compute_effective_priority(data)
+                    ratio = effective_priority / impact if impact > 0 else 0
+                    node_image = create_clock_svg(node_size, ratio, fill_color=color)
+                    shape = "circularImage"
+                else:
+                    node_image = None
+                    shape = "dot"
+                
+                node_mass = 1.5 * math.sqrt(len(data.get("name", "")))
+                
+                if node_image:
+                    net.add_node(node_id,
+                                 title=title,
+                                 label=formatted_label,
+                                 shape=shape,
+                                 image=node_image,
+                                 size=node_size,
+                                 mass=node_mass)
+                else:
+                    net.add_node(node_id,
+                                 title=title,
+                                 label=formatted_label,
+                                 shape=shape,
+                                 color=color,
+                                 size=node_size,
+                                 mass=node_mass)
+        
+        # (7) Add non-tag edges.
+        for source, target, edge_data in G.edges(data=True):
+            if edge_data.get("tag_edge", False):
+                # Tag edges: use the custom length and hide them.
+                net.add_edge(source, target, length=edge_data.get("length", tag_edge_length),
+                             title=f"Tag: {source.replace('tag_','')}", hidden=True)
+            else:
+                net.add_edge(source, target)
+        
+        # (8) Add extra (hidden) edges from leaf task nodes to TARGET.
+        # We loop over all nodes in G that are tasks (i.e. not tag nodes and not TARGET)
+        base_length = 5
+        length_scaling = 10
+        for node in G.nodes():
+            if node == "TARGET":
+                continue
+            # Skip tag nodes (we set is_tag==True for those we added)
+            if G.nodes[node].get("is_tag", False):
+                continue
+            # If the node has no outgoing edges (or if its out_degree is 0), consider it a leaf.
+            if G.out_degree(node) == 0:
+                effective_priority = self.compute_effective_priority(G.nodes[node])
+                edge_length = base_length + length_scaling * effective_priority
+                net.add_edge(node, "TARGET", length=edge_length, title=f"Effective Priority: {effective_priority}", hidden=True)
+        
+        # (9) Set global physics options.
+        net.set_options("""
+        var options = {
+          "physics": {
+            "barnesHut": {
+              "gravitationalConstant": -2000,
+              "centralGravity": 0.3,
+              "springLength": 95,
+              "springConstant": 0.04,
+              "damping": 0.09
+            },
+            "minVelocity": 0.75
+          }
+        }
+        """)
+        
+        if output_path:
+            net.save_graph(output_path)
+        return net
+
+    def visualize_tasks_with_collapse_controls_DRAFT(self, output_path=None, include_completed=False, 
+                                               time_filter="all", leaf_only=False):
+        """
+        Create an interactive visualization of the task network with per-node collapse controls.
+        Each node will have two toggles:
+          - Collapse Lock: When true, the node cannot be collapsed by a parent.
+          - Collapse Children: When true, the node will collapse all its collapsible children recursively.
+        A floating control panel appears when a node is clicked and stays visible until closed.
+        """
+        # Build the task graph.
+        G = self.get_task_graph(include_completed)
+        
+        # Filter nodes based on time sensitivity (if applicable).
+        if time_filter in ("sensitive", "insensitive"):
+            nodes_to_remove = [
+                node for node, data in G.nodes(data=True)
+                if node != "TARGET" and data.get("time_sensitive", False) != (time_filter == "sensitive")
+            ]
+            G.remove_nodes_from(nodes_to_remove)
+        
+        # Optionally filter to leaf nodes.
+        if leaf_only:
+            leaf_nodes = [node for node in G.nodes() if G.out_degree(node) == 0 or node == "TARGET"]
+            G = G.subgraph(leaf_nodes).copy()
+        
+        # Create the PyVis network.
+        net = Network(height="750px", width="100%", directed=True)
+        
+        # Add nodes with the original visualization style and our collapse control state.
+        for node in G.nodes(data=True):
+            node_id = node[0]
+            node_data = node[1]
+            
+            # Initialize collapse state variables if not already set.
+            if "collapse_lock" not in node_data:
+                node_data["collapse_lock"] = False
+            if "collapse_children" not in node_data:
+                node_data["collapse_children"] = False
+            
+            formatted_label = format_node_label(node_id, node_data['name'])
+            # Build the title with original details plus the collapse states.
+            title = f"""
+    Name: {node_data['name']}
+    Priority: {node_data['impact_score']}
+    Status: {node_data['status']}
+    Created: {node_data['created_at']}
+    Collapse Lock: {node_data['collapse_lock']}
+    Collapse Children: {node_data['collapse_children']}
+    """
+            color = node_data.get("color", "orange")
+            impact = float(node_data.get('impact_score', 0))
+            base_size = 20
+            scaling_factor = 5
+            node_size = base_size + scaling_factor * np.sqrt(impact)
+            
+            # For time-sensitive tasks, compute effective priority and use a clock SVG.
+            if node_data.get("time_sensitive", False):
+                effective_priority = self.compute_effective_priority(node_data)
+                ratio = effective_priority / impact if impact > 0 else 0
+                node_image = create_clock_svg(node_size, ratio, fill_color=color)
+                shape = 'circularImage'
+            else:
+                node_image = None
+                shape = 'dot'
+            
+            text_length = np.sqrt(len(node_data['name']))
+            mass_scaling_factor = 1.5
+            node_mass = text_length * mass_scaling_factor
+            
+            if node_image:
+                net.add_node(node_id,
+                             title=title,
+                             label=formatted_label,
+                             shape=shape,
+                             image=node_image,
+                             size=node_size,
+                             mass=node_mass)
+            else:
+                net.add_node(node_id,
+                             title=title,
+                             label=formatted_label,
+                             shape=shape,
+                             color=color,
+                             size=node_size,
+                             mass=node_mass)
+        
+        # Add edges.
+        for edge in G.edges():
+            net.add_edge(edge[0], edge[1])
+        
+        # Append custom JavaScript for the collapse controls with improved styling and behavior.
+        custom_js = """
+<script type="text/javascript">
+  function initControlPanel() {
+      // Add a style block to the head for our control panel
+      const styleElement = document.createElement('style');
+      styleElement.textContent = `
+        #collapseControlPanel {
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background-color: #fff;
+          border: 1px solid #ccc;
+          border-radius: 8px;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          padding: 15px;
+          z-index: 10000;
+          display: none;
+          width: 250px;
+          font-family: Arial, sans-serif;
+        }
+        #collapseControlPanel h4 {
+          margin-top: 0;
+          margin-bottom: 15px;
+          color: #333;
+          font-size: 14px;
+          font-weight: bold;
+          border-bottom: 1px solid #eee;
+          padding-bottom: 10px;
+        }
+        .control-panel-button {
+          display: inline-block;
+          margin: 5px;
+          padding: 8px 12px;
+          background-color: #f0f0f0;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 12px;
+          transition: all 0.2s ease;
+          width: calc(100% - 10px);
+          text-align: center;
+        }
+        .control-panel-button:hover {
+          background-color: #e0e0e0;
+        }
+        .control-panel-button.active {
+          background-color: #4c8bf5;
+          color: white;
+          border-color: #3670d6;
+        }
+        .close-button {
+          background-color: #f44336;
+          color: white;
+          border-color: #d32f2f;
+        }
+        .close-button:hover {
+          background-color: #d32f2f;
+        }
+      `;
+      document.head.appendChild(styleElement);
+      
+      // Create a persistent floating control panel if it doesn't exist.
+      if (!document.getElementById('collapseControlPanel')) {
+          const panel = document.createElement('div');
+          panel.id = 'collapseControlPanel';
+          document.body.appendChild(panel);
+      }
+      
+      // Store the currently selected node ID (if needed later)
+      let currentNodeId = null;
+      
+      // Function to update the panel content for a given node.
+      function updatePanel(nodeId, nodeData) {
+          const panel = document.getElementById('collapseControlPanel');
+          panel.innerHTML = '';  // Clear previous content.
+          currentNodeId = nodeId;
+          
+          // Create header.
+          const header = document.createElement('h4');
+          header.textContent = 'Controls for ' + nodeId;
+          panel.appendChild(header);
+          
+          // Create the Collapse Lock toggle button.
+          const lockBtn = document.createElement('div');
+          lockBtn.className = 'control-panel-button' + (nodeData.collapse_lock ? ' active' : '');
+          lockBtn.textContent = nodeData.collapse_lock ? 'Unlock Collapse' : 'Lock Collapse';
+          lockBtn.onclick = function(e) {
+              e.stopPropagation();
+              nodeData.collapse_lock = !nodeData.collapse_lock;
+              this.classList.toggle('active');
+              this.textContent = nodeData.collapse_lock ? 'Unlock Collapse' : 'Lock Collapse';
+              // Update node title tooltip.
+              window.network.body.data.nodes.update({
+                  id: nodeId,
+                  title: 'Name: ' + nodeData.name + '\\nPriority: ' + nodeData.impact_score +
+                         '\\nStatus: ' + nodeData.status + '\\nCreated: ' + nodeData.created_at +
+                         '\\nCollapse Lock: ' + nodeData.collapse_lock +
+                         '\\nCollapse Children: ' + nodeData.collapse_children
+              });
+          };
+          panel.appendChild(lockBtn);
+          
+          // Create the Collapse Children toggle button.
+          const collapseBtn = document.createElement('div');
+          collapseBtn.className = 'control-panel-button' + (nodeData.collapse_children ? ' active' : '');
+          collapseBtn.textContent = nodeData.collapse_children ? 'Expand Children' : 'Collapse Children';
+          collapseBtn.onclick = function(e) {
+              e.stopPropagation();
+              nodeData.collapse_children = !nodeData.collapse_children;
+              this.classList.toggle('active');
+              this.textContent = nodeData.collapse_children ? 'Expand Children' : 'Collapse Children';
+              // Update node title tooltip.
+              window.network.body.data.nodes.update({
+                  id: nodeId,
+                  title: 'Name: ' + nodeData.name + '\\nPriority: ' + nodeData.impact_score +
+                         '\\nStatus: ' + nodeData.status + '\\nCreated: ' + nodeData.created_at +
+                         '\\nCollapse Lock: ' + nodeData.collapse_lock +
+                         '\\nCollapse Children: ' + nodeData.collapse_children
+              });
+              // Here you would call your recursive collapse/expand logic.
+              collapseOrExpandChildren(nodeId, nodeData.collapse_children);
+          };
+          panel.appendChild(collapseBtn);
+          
+          // Add a Close button to hide the panel.
+          const closeBtn = document.createElement('div');
+          closeBtn.className = 'control-panel-button close-button';
+          closeBtn.textContent = 'Close Panel';
+          closeBtn.onclick = function(e) {
+              e.stopPropagation();
+              panel.style.display = 'none';
+              currentNodeId = null;
+          };
+          panel.appendChild(closeBtn);
+      }
+      
+      // Function to show the control panel for a given node.
+      function showCollapsePanel(nodeId, nodeData) {
+          const panel = document.getElementById('collapseControlPanel');
+          panel.style.display = 'block';
+          updatePanel(nodeId, nodeData);
+      }
+      
+      // Placeholder for collapse/expand children functionality.
+      function collapseOrExpandChildren(nodeId, shouldCollapse) {
+          console.log('Collapse children of ' + nodeId + ': ' + shouldCollapse);
+          // Implement actual collapse/expand logic here.
+      }
+      
+      // Attach a click listener to the network.
+      if (window.network) {
+          window.network.on("click", function(params) {
+              // Only show the panel if a node is actually clicked.
+              if (params.nodes.length > 0) {
+                  const nodeId = params.nodes[0];
+                  const nodeData = window.network.body.data.nodes.get(nodeId);
+                  // Ensure our custom properties exist.
+                  if (typeof nodeData.collapse_lock === 'undefined') {
+                      nodeData.collapse_lock = false;
+                  }
+                  if (typeof nodeData.collapse_children === 'undefined') {
+                      nodeData.collapse_children = false;
+                  }
+                  showCollapsePanel(nodeId, nodeData);
+              }
+          });
+      }
+  }
+  
+  // Run our init function depending on document readiness.
+  if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initControlPanel);
+  } else {
+      initControlPanel();
+  }
+</script>
+"""
+        net.html += custom_js
+        
+        if output_path:
+            net.save_graph(output_path)
         return net
     
     def filter_tasks(self, priority_min=None, priority_max=None, 
